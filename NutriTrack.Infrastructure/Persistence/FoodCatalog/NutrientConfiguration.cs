@@ -15,10 +15,9 @@ namespace NutriTrack.Infrastructure.Persistence.FoodCatalog
             b.HasKey(x => x.NutrientId);
             b.Property(x => x.Name).HasMaxLength(50).IsRequired();
             b.Property(x => x.Abv).HasMaxLength(20).IsRequired();
-            b.HasOne(x => x.MeasurementUnit)
-             .WithMany()
-             .HasForeignKey(x => x.MeasurementUnitId)
-             .OnDelete(DeleteBehavior.Restrict);
+            b.Property(x => x.MeasurementUnit)
+             .HasConversion<int>()
+             .IsRequired();
         }
     }
 }
