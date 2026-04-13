@@ -1,4 +1,4 @@
-NutriTrack is a REST API built with .NET / C# using a Vertical Slice Architecture pattern, backed by a SQL Server database.
+NutriTrack is a REST API built with .NET / C#, backed by a SQL Server database.
 
 What it does
 
