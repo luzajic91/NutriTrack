@@ -4,8 +4,11 @@ using System.Text;
 
 namespace NutriTrack.Domain.FoodCatalog;
 
-public class MeasurementUnit
+public enum MeasurementUnit
 {
-    public int MeasurementUnitId { get; set; }
-    public string Name { get; set; } = default!;
+    Kilocalories = 1,
+    Grams = 2,
+    Miligrams = 3,
+    Micrograms = 4,
+    Mililiters = 5
 }

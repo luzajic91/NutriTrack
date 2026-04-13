@@ -28,7 +28,7 @@ namespace NutriTrack.Application.Features.FoodCatalog
 
     public class GetFoodHandler : IRequestHandler<GetFoodQuery, FoodResponse>
     {
-        private readonly IAppDbContext _db;
+        private readonly IAppDbContext _db; 
 
         public GetFoodHandler(IAppDbContext db) => _db = db;
 
