@@ -53,7 +53,7 @@ namespace NutriTrack.Application.Features.FoodCatalog
                     fn.Nutrient.Name,
                     fn.Nutrient.Abv,
                     fn.ValuePer100g,
-                    fn.Nutrient.MeasurementUnit.Name)).ToList(),
+                    fn.Nutrient.MeasurementUnit.ToString())).ToList(),
                 food.FoodServings.Select(fs => new FoodServingResponse(
                     fs.FoodServingId,
                     fs.DisplayName,

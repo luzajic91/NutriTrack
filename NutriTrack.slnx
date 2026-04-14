@@ -1,7 +1,6 @@
 <Solution>
-  <Project Path="NutriTrack.Application/NutriTrack.Application.csproj" Id="4ebc79c5-b855-4f43-82d3-2c53e825f323" />
+  <Project Path="NutriTrack.Core/NutriTrack.Core.csproj" Id="0f188ff8-0554-42bf-8f99-599ae7a4ad85" />
   <Project Path="NutriTrack.Domain/NutriTrack.Domain.csproj" Id="164fb5e3-6a92-4b04-aabd-b2fbe24c999e" />
-  <Project Path="NutriTrack.Infrastructure/NutriTrack.Infrastructure.csproj" Id="5073312d-64e6-4680-8ed8-092af89883b8" />
   <Project Path="NutriTrack.Tests/NutriTrack.Tests.csproj" Id="c84640cf-e041-4680-953c-ec8530da206d" />
   <Project Path="NutriTrack/NutriTrack.Api.csproj" />
 </Solution>

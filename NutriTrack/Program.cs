@@ -1,5 +1,6 @@
 using NutriTrack.Api;
-using NutriTrack.Application.Common;
+using NutriTrack.Core.Common;
+using NutriTrack.Core.Features.Identity;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -31,7 +32,7 @@ builder.Services.AddValidatorsFromAssembly(typeof(RegisterCommand).Assembly);
 builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
 builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 
-builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddCore(builder.Configuration);
 
 var app = builder.Build();
 
