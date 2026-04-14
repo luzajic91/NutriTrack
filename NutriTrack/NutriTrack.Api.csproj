@@ -19,8 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\NutriTrack.Application\NutriTrack.Application.csproj" />
-    <ProjectReference Include="..\NutriTrack.Infrastructure\NutriTrack.Infrastructure.csproj" />
+    <ProjectReference Include="..\NutriTrack.Core\NutriTrack.Core.csproj" />
   </ItemGroup>
 
 </Project>

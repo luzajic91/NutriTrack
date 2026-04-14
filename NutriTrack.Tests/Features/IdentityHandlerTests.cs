@@ -1,85 +1,67 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using Microsoft.EntityFrameworkCore;
 
-namespace NutriTrack.Tests.Features
+namespace NutriTrack.Tests.Features;
+
+public class RegisterHandlerTests
 {
-    public class RegisterHandlerTests
+    private static NutriTrackDbContext CreateDb()
     {
-        private readonly Mock<IAppDbContext> _db = new();
-        private readonly RegisterHandler _handler;
+        var options = new DbContextOptionsBuilder<NutriTrackDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        return new NutriTrackDbContext(options);
+    }
 
-        public RegisterHandlerTests()
+    [Fact]
+    public async Task Handle_ValidCommand_ReturnsNewUserId()
+    {
+        await using var db = CreateDb();
+        db.Roles.Add(new Role { RoleId = 1, Name = "User" });
+        await db.SaveChangesAsync();
+
+        var handler = new RegisterHandler(db);
+        var result = await handler.Handle(
+            new RegisterCommand("test@test.com", "password123"),
+            CancellationToken.None);
+
+        result.Should().Be(1);
+        db.Users.Should().HaveCount(1);
+        db.Users.First().Email.Should().Be("test@test.com");
+    }
+
+    [Fact]
+    public async Task Handle_DuplicateEmail_ThrowsValidationException()
+    {
+        await using var db = CreateDb();
+        db.Users.Add(new User
         {
-            _handler = new RegisterHandler(_db.Object);
-        }
+            UserId = 1,
+            Email = "test@test.com",
+            PasswordHash = "x",
+            RoleId = 1
+        });
+        await db.SaveChangesAsync();
 
-        [Fact]
-        public async Task Handle_ValidCommand_ReturnsNewUserId()
-        {
-            // Arrange
-            var users = new List<User>();
-            var roles = new List<Role> { new() { RoleId = 1, Name = "User" } };
+        var handler = new RegisterHandler(db);
+        var act = async () => await handler.Handle(
+            new RegisterCommand("test@test.com", "password123"),
+            CancellationToken.None);
 
-            _db.Setup(x => x.Users)
-                .Returns(MockDbSet.CreateMockQueryable(users));
-            _db.Setup(x => x.Roles)
-                .Returns(MockDbSet.CreateMockQueryable(roles));
-            _db.Setup(x => x.Add(It.IsAny<User>()))
-                .Callback<User>(u => { u.UserId = 1; users.Add(u); });
-            _db.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
-                .ReturnsAsync(1);
+        await act.Should().ThrowAsync<FluentValidation.ValidationException>()
+            .WithMessage("*Email is already in use*");
+    }
 
-            var cmd = new RegisterCommand("test@test.com", "password123");
+    [Fact]
+    public async Task Handle_MissingUserRole_ThrowsNotFoundException()
+    {
+        await using var db = CreateDb();
 
-            // Act
-            var result = await _handler.Handle(cmd, CancellationToken.None);
+        var handler = new RegisterHandler(db);
+        var act = async () => await handler.Handle(
+            new RegisterCommand("test@test.com", "password123"),
+            CancellationToken.None);
 
-            // Assert
-            result.Should().Be(1);
-            users.Should().HaveCount(1);
-            users[0].Email.Should().Be("test@test.com");
-        }
-
-        [Fact]
-        public async Task Handle_DuplicateEmail_ThrowsValidationException()
-        {
-            // Arrange
-            var users = new List<User>
-        {
-            new() { UserId = 1, Email = "test@test.com" }
-        };
-
-            _db.Setup(x => x.Users)
-                .Returns(MockDbSet.CreateMockQueryable(users));
-
-            var cmd = new RegisterCommand("test@test.com", "password123");
-
-            // Act
-            var act = async () => await _handler.Handle(cmd, CancellationToken.None);
-
-            // Assert
-            await act.Should().ThrowAsync<FluentValidation.ValidationException>()
-                .WithMessage("*Email is already in use*");
-        }
-
-        [Fact]
-        public async Task Handle_MissingUserRole_ThrowsNotFoundException()
-        {
-            // Arrange
-            _db.Setup(x => x.Users)
-                .Returns(MockDbSet.CreateMockQueryable(new List<User>()));
-            _db.Setup(x => x.Roles)
-                .Returns(MockDbSet.CreateMockQueryable(new List<Role>()));
-
-            var cmd = new RegisterCommand("test@test.com", "password123");
-
-            // Act
-            var act = async () => await _handler.Handle(cmd, CancellationToken.None);
-
-            // Assert
-            await act.Should().ThrowAsync<NotFoundException>()
-                .WithMessage("*Default role not found*");
-        }
+        await act.Should().ThrowAsync<NotFoundException>()
+            .WithMessage("*Default role not found*");
     }
 }

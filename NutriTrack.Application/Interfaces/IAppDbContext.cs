@@ -17,7 +17,7 @@ namespace NutriTrack.Application.Interfaces
         IQueryable<Food> Foods { get; }
         IQueryable<Brand> Brands { get; }
         IQueryable<Nutrient> Nutrients { get; }
-        IQueryable<MeasurementUnit> MeasurementUnits { get; }
+        //IQueryable<MeasurementUnit> MeasurementUnits { get; }
         IQueryable<ServingUnit> ServingUnits { get; }
         IQueryable<FoodServing> FoodServings { get; }
         IQueryable<FoodNutrient> FoodNutrients { get; }

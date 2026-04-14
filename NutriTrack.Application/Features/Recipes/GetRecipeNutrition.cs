@@ -62,7 +62,7 @@ namespace NutriTrack.Application.Features.Recipes
                     g.Key.Name,
                     g.Key.Abv,
                     g.Sum(fn => fn.ValuePer100g * gramsLookup.GetValueOrDefault(fn.FoodId) / 100),
-                    g.Key.MeasurementUnit.Name))
+                    g.Key.MeasurementUnit.ToString()))
                 .ToList();
 
             List<NutrientTotalResponse>? perServing = null;

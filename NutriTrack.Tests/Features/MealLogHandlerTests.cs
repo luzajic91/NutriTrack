@@ -1,143 +1,112 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
-namespace NutriTrack.Tests.Features
+namespace NutriTrack.Tests.Features;
+
+public class LogMealHandlerTests
 {
-    public class MealLogHandlerTests
+    private static NutriTrackDbContext CreateDb()
     {
-        private readonly Mock<IAppDbContext> _db = new();
-        private readonly Mock<ICurrentUserService> _currentUser = new();
-        private readonly Mock<IDailySummaryCacheService> _cache = new();
-        private readonly LogMealHandler _handler;
+        var options = new DbContextOptionsBuilder<NutriTrackDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        return new NutriTrackDbContext(options);
+    }
 
-        public MealLogHandlerTests()
+    private static CurrentUserService CreateUser(int userId = 1)
+    {
+        var claims = new[] { new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+                             new Claim(ClaimTypes.Role, "User") };
+        var identity = new ClaimsIdentity(claims);
+        var principal = new ClaimsPrincipal(identity);
+        var accessor = new Mock<IHttpContextAccessor>();
+        accessor.Setup(x => x.HttpContext!.User).Returns(principal);
+        return new CurrentUserService(accessor.Object);
+    }
+
+    [Fact]
+    public async Task Handle_DirectFoodEntry_PersistsMealWithCorrectGrams()
+    {
+        await using var db = CreateDb();
+        db.Foods.Add(new Food { FoodId = 1, Name = "Chicken" });
+        await db.SaveChangesAsync();
+
+        var handler = new LogMealHandler(db, CreateUser());
+        await handler.Handle(
+            new LogMealCommand([new MealFoodEntry(1, 150)], [], null),
+            CancellationToken.None);
+
+        db.MealEntries.Should().HaveCount(1);
+        db.MealEntryItems.First().Grams.Should().Be(150);
+    }
+
+    [Fact]
+    public async Task Handle_RecipeEntry_ExpandsIntoFoods()
+    {
+        await using var db = CreateDb();
+        db.Foods.Add(new Food { FoodId = 1, Name = "Rice" });
+        db.Foods.Add(new Food { FoodId = 2, Name = "Chicken" });
+        db.Recipes.Add(new Recipe
         {
-            _currentUser.Setup(x => x.UserId).Returns(1);
-            _handler = new LogMealHandler(_db.Object, _currentUser.Object, _cache.Object);
-        }
+            RecipeId = 1,
+            UserId = 1,
+            Name = "Bowl",
+            TotalGrams = 500,
+            IsPublic = false,
+            RecipeItems =
+            [
+                new RecipeItem { FoodId = 1, Grams = 200 },
+            new RecipeItem { FoodId = 2, Grams = 300 }
+            ]
+        });
+        await db.SaveChangesAsync();
 
-        [Fact]
-        public async Task Handle_DirectFoodEntry_PersistsMealWithCorrectGrams()
+        var handler = new LogMealHandler(db, CreateUser());
+        await handler.Handle(
+            new LogMealCommand([], [new MealRecipeEntry(1, 250)], null),
+            CancellationToken.None);
+
+        var items = db.MealEntryItems.ToList();
+        items.Should().HaveCount(2);
+        items.First(i => i.FoodId == 1).Grams.Should().Be(100);  // 200 * 0.5
+        items.First(i => i.FoodId == 2).Grams.Should().Be(150);  // 300 * 0.5
+    }
+
+    [Fact]
+    public async Task Handle_NonExistentFood_ThrowsNotFoundException()
+    {
+        await using var db = CreateDb();
+
+        var handler = new LogMealHandler(db, CreateUser());
+        var act = async () => await handler.Handle(
+            new LogMealCommand([new MealFoodEntry(99, 100)], [], null),
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<NotFoundException>()
+            .WithMessage("*Food 99 not found*");
+    }
+
+    [Fact]
+    public async Task Handle_PrivateRecipeFromOtherUser_ThrowsForbiddenException()
+    {
+        await using var db = CreateDb();
+        db.Recipes.Add(new Recipe
         {
-            // Arrange
-            var foods = new List<Food> { new() { FoodId = 1, Name = "Chicken" } };
-            var savedEntries = new List<MealEntry>();
+            RecipeId = 1,
+            UserId = 99,
+            Name = "Other",
+            TotalGrams = 100,
+            IsPublic = false,
+            RecipeItems = []
+        });
+        await db.SaveChangesAsync();
 
-            _db.Setup(x => x.Foods)
-                .Returns(MockDbSet.CreateMockQueryable(foods));
-            _db.Setup(x => x.Add(It.IsAny<MealEntry>()))
-                .Callback<MealEntry>(e => savedEntries.Add(e));
-            _db.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
-                .ReturnsAsync(1);
+        var handler = new LogMealHandler(db, CreateUser(userId: 1));
+        var act = async () => await handler.Handle(
+            new LogMealCommand([], [new MealRecipeEntry(1, 100)], null),
+            CancellationToken.None);
 
-            var cmd = new LogMealCommand(
-                Foods: [new MealFoodEntry(FoodId: 1, Grams: 150)],
-                Recipes: [],
-                ConsumedAt: null);
-
-            // Act
-            await _handler.Handle(cmd, CancellationToken.None);
-
-            // Assert
-            savedEntries.Should().HaveCount(1);
-            savedEntries[0].Items.Should().HaveCount(1);
-            savedEntries[0].Items.First().Grams.Should().Be(150);
-            savedEntries[0].Items.First().FoodId.Should().Be(1);
-        }
-
-        [Fact]
-        public async Task Handle_RecipeEntry_ExpandsIntoFoods()
-        {
-            // Arrange
-            var recipe = new Recipe
-            {
-                RecipeId = 1,
-                UserId = 1,
-                TotalGrams = 500,
-                IsPublic = false,
-                RecipeItems =
-                [
-                    new RecipeItem { FoodId = 1, Grams = 200 },
-                new RecipeItem { FoodId = 2, Grams = 300 }
-                ]
-            };
-
-            var savedEntries = new List<MealEntry>();
-
-            _db.Setup(x => x.Foods)
-                .Returns(MockDbSet.CreateMockQueryable(new List<Food>()));
-            _db.Setup(x => x.Recipes)
-                .Returns(MockDbSet.CreateMockQueryable(new List<Recipe> { recipe }));
-            _db.Setup(x => x.Add(It.IsAny<MealEntry>()))
-                .Callback<MealEntry>(e => savedEntries.Add(e));
-            _db.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
-                .ReturnsAsync(1);
-
-            // user logs 250g of a 500g recipe — expects 50% scale
-            var cmd = new LogMealCommand(
-                Foods: [],
-                Recipes: [new MealRecipeEntry(RecipeId: 1, Grams: 250)],
-                ConsumedAt: null);
-
-            // Act
-            await _handler.Handle(cmd, CancellationToken.None);
-
-            // Assert
-            var items = savedEntries[0].Items.ToList();
-            items.Should().HaveCount(2);
-            items[0].Grams.Should().Be(100); // 200 * 0.5
-            items[1].Grams.Should().Be(150); // 300 * 0.5
-        }
-
-        [Fact]
-        public async Task Handle_NonExistentFood_ThrowsNotFoundException()
-        {
-            // Arrange
-            _db.Setup(x => x.Foods)
-                .Returns(MockDbSet.CreateMockQueryable(new List<Food>()));
-
-            var cmd = new LogMealCommand(
-                Foods: [new MealFoodEntry(FoodId: 99, Grams: 100)],
-                Recipes: [],
-                ConsumedAt: null);
-
-            // Act
-            var act = async () => await _handler.Handle(cmd, CancellationToken.None);
-
-            // Assert
-            await act.Should().ThrowAsync<NotFoundException>()
-                .WithMessage("*Food 99 not found*");
-        }
-
-        [Fact]
-        public async Task Handle_PrivateRecipeFromOtherUser_ThrowsForbiddenException()
-        {
-            // Arrange
-            var recipe = new Recipe
-            {
-                RecipeId = 1,
-                UserId = 99, // different user
-                IsPublic = false,
-                TotalGrams = 100,
-                RecipeItems = []
-            };
-
-            _db.Setup(x => x.Foods)
-                .Returns(MockDbSet.CreateMockQueryable(new List<Food>()));
-            _db.Setup(x => x.Recipes)
-                .Returns(MockDbSet.CreateMockQueryable(new List<Recipe> { recipe }));
-
-            var cmd = new LogMealCommand(
-                Foods: [],
-                Recipes: [new MealRecipeEntry(RecipeId: 1, Grams: 100)],
-                ConsumedAt: null);
-
-            // Act
-            var act = async () => await _handler.Handle(cmd, CancellationToken.None);
-
-            // Assert
-            await act.Should().ThrowAsync<ForbiddenException>();
-        }
+        await act.Should().ThrowAsync<ForbiddenException>();
     }
 }

@@ -17,7 +17,7 @@ namespace NutriTrack.Infrastructure.Persistence
         public DbSet<Food> Foods => Set<Food>();
         public DbSet<Brand> Brands => Set<Brand>();
         public DbSet<Nutrient> Nutrients => Set<Nutrient>();
-        public DbSet<MeasurementUnit> MeasurementUnits => Set<MeasurementUnit>();
+        //public DbSet<MeasurementUnit> MeasurementUnits => Set<MeasurementUnit>();
         public DbSet<ServingUnit> ServingUnits => Set<ServingUnit>();
         public DbSet<FoodServing> FoodServings => Set<FoodServing>();
         public DbSet<FoodNutrient> FoodNutrients => Set<FoodNutrient>();
@@ -32,7 +32,7 @@ namespace NutriTrack.Infrastructure.Persistence
         IQueryable<Food> IAppDbContext.Foods => Foods;
         IQueryable<Brand> IAppDbContext.Brands => Brands;
         IQueryable<Nutrient> IAppDbContext.Nutrients => Nutrients;
-        IQueryable<MeasurementUnit> IAppDbContext.MeasurementUnits => MeasurementUnits;
+        //IQueryable<MeasurementUnit> IAppDbContext.MeasurementUnits => MeasurementUnits;
         IQueryable<ServingUnit> IAppDbContext.ServingUnits => ServingUnits;
         IQueryable<FoodServing> IAppDbContext.FoodServings => FoodServings;
         IQueryable<FoodNutrient> IAppDbContext.FoodNutrients => FoodNutrients;
