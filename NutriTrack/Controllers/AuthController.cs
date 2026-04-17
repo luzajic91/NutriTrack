@@ -4,28 +4,28 @@
 [Route("api/auth")]
 public class AuthController : ControllerBase
 {
-    private readonly ISender _sender;
+    private readonly Dispatcher _dispatcher;
 
-    public AuthController(ISender sender) => _sender = sender;
+    public AuthController(Dispatcher dispatcher) => _dispatcher = dispatcher;
 
     [HttpPost("register")]
     public async Task<IActionResult> Register(RegisterCommand cmd, CancellationToken ct)
     {
-        var userId = await _sender.Send(cmd, ct);
+        var userId = await _dispatcher.Send(cmd, ct);
         return CreatedAtAction(nameof(Register), new { userId });
     }
 
     [HttpPost("login")]
     public async Task<IActionResult> Login(LoginCommand cmd, CancellationToken ct)
     {
-        var result = await _sender.Send(cmd, ct);
+        var result = await _dispatcher.Send(cmd, ct);
         return Ok(result);
     }
 
     [HttpPost("refresh-token")]
     public async Task<IActionResult> RefreshToken(RefreshTokenCommand cmd, CancellationToken ct)
     {
-        var result = await _sender.Send(cmd, ct);
+        var result = await _dispatcher.Send(cmd, ct);
         return Ok(result);
     }
 
@@ -33,7 +33,7 @@ public class AuthController : ControllerBase
     [Authorize]
     public async Task<IActionResult> RevokeToken(RevokeTokenCommand cmd, CancellationToken ct)
     {
-        await _sender.Send(cmd, ct);
+        await _dispatcher.Send(cmd, ct);
         return NoContent();
     }
 }

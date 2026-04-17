@@ -1,5 +1,4 @@
 using NutriTrack.Api;
-using NutriTrack.Core.Common;
 using NutriTrack.Core.Features.Identity;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -23,14 +22,6 @@ builder.Services.AddSwaggerGen(options =>
         [new OpenApiSecuritySchemeReference("Bearer", document)] = []
     });
 });
-
-builder.Services.AddMediatR(cfg =>
-    cfg.RegisterServicesFromAssembly(typeof(RegisterCommand).Assembly));
-
-builder.Services.AddValidatorsFromAssembly(typeof(RegisterCommand).Assembly);
-
-builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
-builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 
 builder.Services.AddCore(builder.Configuration);
 

@@ -1,5 +1,6 @@
 ﻿namespace NutriTrack.Core.Features.Identity;
 
+// IRequest with no type param = IRequest<Unit>
 public record RevokeTokenCommand(string RefreshToken) : IRequest;
 
 public class RevokeTokenValidator : AbstractValidator<RevokeTokenCommand>
@@ -16,7 +17,7 @@ public class RevokeTokenHandler : IRequestHandler<RevokeTokenCommand>
 
     public RevokeTokenHandler(NutriTrackDbContext db) => _db = db;
 
-    public async Task Handle(RevokeTokenCommand cmd, CancellationToken ct)
+    public async Task<Unit> Handle(RevokeTokenCommand cmd, CancellationToken ct)
     {
         var token = await _db.RefreshTokens
             .FirstOrDefaultAsync(r => r.Token == cmd.RefreshToken, ct)
@@ -26,7 +27,8 @@ public class RevokeTokenHandler : IRequestHandler<RevokeTokenCommand>
             throw new ForbiddenException("Refresh token is already inactive.");
 
         token.RevokedAt = DateTime.UtcNow;
-
         await _db.SaveChangesAsync(ct);
+
+        return Unit.Value;
     }
 }

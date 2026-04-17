@@ -58,11 +58,7 @@ public class LogMealHandler : IRequestHandler<LogMealCommand, int>
             if (!exists)
                 throw new NotFoundException($"Food {f.FoodId} not found.");
 
-            entry.Items.Add(new MealEntryItem
-            {
-                FoodId = f.FoodId,
-                Grams = f.Grams
-            });
+            entry.Items.Add(new MealEntryItem { FoodId = f.FoodId, Grams = f.Grams });
         }
 
         foreach (var r in cmd.Recipes)
