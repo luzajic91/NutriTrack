@@ -1,11 +1,9 @@
-﻿global using FluentValidation;
-global using MediatR;
-global using Microsoft.AspNetCore.Authorization;
+﻿global using Microsoft.AspNetCore.Authorization;
 global using Microsoft.AspNetCore.Mvc;
-global using Microsoft.OpenApi;
 global using NutriTrack.Core;
 global using NutriTrack.Core.Common;
 global using NutriTrack.Core.Features.FoodCatalog;
 global using NutriTrack.Core.Features.Identity;
 global using NutriTrack.Core.Features.MealLogging;
 global using NutriTrack.Core.Features.Recipes;
+global using Scalar.AspNetCore;

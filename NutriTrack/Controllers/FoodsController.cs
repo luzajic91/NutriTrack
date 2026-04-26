@@ -5,14 +5,14 @@
 [Authorize]
 public class FoodsController : ControllerBase
 {
-    private readonly ISender _sender;
+    private readonly Dispatcher _dispatcher;
 
-    public FoodsController(ISender sender) => _sender = sender;
+    public FoodsController(Dispatcher dispatcher) => _dispatcher = dispatcher;
 
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetFood(int id, CancellationToken ct)
     {
-        var result = await _sender.Send(new GetFoodQuery(id), ct);
+        var result = await _dispatcher.Send(new GetFoodQuery(id), ct);
         return Ok(result);
     }
 
@@ -24,7 +24,7 @@ public class FoodsController : ControllerBase
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var result = await _sender.Send(
+        var result = await _dispatcher.Send(
             new SearchFoodsQuery(search, brandId, page, pageSize), ct);
         return Ok(result);
     }

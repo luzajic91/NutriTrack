@@ -5,14 +5,14 @@
 [Authorize]
 public class MealsController : ControllerBase
 {
-    private readonly ISender _sender;
+    private readonly Dispatcher _dispatcher;
 
-    public MealsController(ISender sender) => _sender = sender;
+    public MealsController(Dispatcher dispatcher) => _dispatcher = dispatcher;
 
     [HttpPost]
     public async Task<IActionResult> LogMeal(LogMealCommand cmd, CancellationToken ct)
     {
-        var id = await _sender.Send(cmd, ct);
+        var id = await _dispatcher.Send(cmd, ct);
         return CreatedAtAction(nameof(LogMeal), new { id }, id);
     }
 
@@ -22,7 +22,7 @@ public class MealsController : ControllerBase
         [FromQuery] DateOnly? to,
         CancellationToken ct)
     {
-        var result = await _sender.Send(new GetMealHistoryQuery(from, to), ct);
+        var result = await _dispatcher.Send(new GetMealHistoryQuery(from, to), ct);
         return Ok(result);
     }
 
@@ -32,7 +32,8 @@ public class MealsController : ControllerBase
         CancellationToken ct)
     {
         var queryDate = date ?? DateOnly.FromDateTime(DateTime.UtcNow);
-        var result = await _sender.Send(new GetDailyNutritionSummaryQuery(queryDate), ct);
+        var result = await _dispatcher.Send(
+            new GetDailyNutritionSummaryQuery(queryDate), ct);
         return Ok(result);
     }
 }
