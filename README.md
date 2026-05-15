@@ -19,13 +19,9 @@ ASP.NET Core Web API with Controllers
 
 MediatR for request handling — every feature is a self-contained command or query
 
-FluentValidation wired into the MediatR pipeline for automatic validation
-
 Entity Framework Core for standard CRUD operations
 
 Dapper for the complex nutrition aggregation query
-
-IMemoryCache for daily nutrition summary caching
 
 JWT Bearer tokens with refresh token rotation for authentication
 
