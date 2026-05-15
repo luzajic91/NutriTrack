@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace NutriTrack.Tests.Features;
 
@@ -12,6 +13,11 @@ public class RegisterHandlerTests
         return new NutriTrackDbContext(options);
     }
 
+    private static AuthService CreateService(NutriTrackDbContext db) =>
+        new(db, null!, NullLogger<AuthService>.Instance,
+            new RegisterValidator(), new LoginValidator(),
+            new RefreshTokenValidator(), new RevokeTokenValidator());
+
     [Fact]
     public async Task Handle_ValidCommand_ReturnsNewUserId()
     {
@@ -19,8 +25,8 @@ public class RegisterHandlerTests
         db.Roles.Add(new Role { RoleId = 1, Name = "User" });
         await db.SaveChangesAsync();
 
-        var handler = new RegisterHandler(db);
-        var result = await handler.Handle(
+        var service = CreateService(db);
+        var result = await service.Register(
             new RegisterCommand("test@test.com", "password123"),
             CancellationToken.None);
 
@@ -42,8 +48,8 @@ public class RegisterHandlerTests
         });
         await db.SaveChangesAsync();
 
-        var handler = new RegisterHandler(db);
-        var act = async () => await handler.Handle(
+        var service = CreateService(db);
+        var act = async () => await service.Register(
             new RegisterCommand("test@test.com", "password123"),
             CancellationToken.None);
 
@@ -56,8 +62,8 @@ public class RegisterHandlerTests
     {
         await using var db = CreateDb();
 
-        var handler = new RegisterHandler(db);
-        var act = async () => await handler.Handle(
+        var service = CreateService(db);
+        var act = async () => await service.Register(
             new RegisterCommand("test@test.com", "password123"),
             CancellationToken.None);
 

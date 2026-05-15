@@ -1,18 +1,18 @@
-﻿namespace NutriTrack.Api.Controllers;
+namespace NutriTrack.Api.Controllers;
 
 [ApiController]
 [Route("api/meals")]
 [Authorize]
 public class MealsController : ControllerBase
 {
-    private readonly Dispatcher _dispatcher;
+    private readonly MealLoggingService _meals;
 
-    public MealsController(Dispatcher dispatcher) => _dispatcher = dispatcher;
+    public MealsController(MealLoggingService meals) => _meals = meals;
 
     [HttpPost]
     public async Task<IActionResult> LogMeal(LogMealCommand cmd, CancellationToken ct)
     {
-        var id = await _dispatcher.Send(cmd, ct);
+        var id = await _meals.LogMeal(cmd, ct);
         return CreatedAtAction(nameof(LogMeal), new { id }, id);
     }
 
@@ -22,7 +22,7 @@ public class MealsController : ControllerBase
         [FromQuery] DateOnly? to,
         CancellationToken ct)
     {
-        var result = await _dispatcher.Send(new GetMealHistoryQuery(from, to), ct);
+        var result = await _meals.GetMealHistory(from, to, ct);
         return Ok(result);
     }
 
@@ -32,8 +32,7 @@ public class MealsController : ControllerBase
         CancellationToken ct)
     {
         var queryDate = date ?? DateOnly.FromDateTime(DateTime.UtcNow);
-        var result = await _dispatcher.Send(
-            new GetDailyNutritionSummaryQuery(queryDate), ct);
+        var result = await _meals.GetDailyNutritionSummary(queryDate, ct);
         return Ok(result);
     }
 }
