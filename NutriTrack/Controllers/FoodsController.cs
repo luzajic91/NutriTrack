@@ -1,18 +1,18 @@
-﻿namespace NutriTrack.Api.Controllers;
+namespace NutriTrack.Api.Controllers;
 
 [ApiController]
 [Route("api/foods")]
 [Authorize]
 public class FoodsController : ControllerBase
 {
-    private readonly Dispatcher _dispatcher;
+    private readonly FoodCatalogService _foods;
 
-    public FoodsController(Dispatcher dispatcher) => _dispatcher = dispatcher;
+    public FoodsController(FoodCatalogService foods) => _foods = foods;
 
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetFood(int id, CancellationToken ct)
     {
-        var result = await _dispatcher.Send(new GetFoodQuery(id), ct);
+        var result = await _foods.GetFood(id, ct);
         return Ok(result);
     }
 
@@ -24,8 +24,7 @@ public class FoodsController : ControllerBase
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var result = await _dispatcher.Send(
-            new SearchFoodsQuery(search, brandId, page, pageSize), ct);
+        var result = await _foods.SearchFoods(search, brandId, page, pageSize, ct);
         return Ok(result);
     }
 }

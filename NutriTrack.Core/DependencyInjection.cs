@@ -35,36 +35,19 @@ public static class DependencyInjection
         services.AddScoped<CurrentUserService>();
         services.AddScoped<NutritionQueryService>();
 
-        // register Dispatcher
-        services.AddScoped<Dispatcher>();
+        // validators
+        services.AddScoped<Features.Identity.RegisterValidator>();
+        services.AddScoped<Features.Identity.LoginValidator>();
+        services.AddScoped<Features.Identity.RefreshTokenValidator>();
+        services.AddScoped<Features.Identity.RevokeTokenValidator>();
+        services.AddScoped<Features.MealLogging.LogMealValidator>();
+        services.AddScoped<Features.Recipes.CreateRecipeValidator>();
 
-        // scan assembly and register all handlers
-        var assembly = typeof(DependencyInjection).Assembly;
-
-        var handlerTypes = assembly.GetTypes()
-            .Where(t => !t.IsAbstract && !t.IsInterface)
-            .SelectMany(t => t.GetInterfaces()
-                .Where(i => i.IsGenericType &&
-                            i.GetGenericTypeDefinition() == typeof(IRequestHandler<,>))
-                .Select(i => new { Implementation = t, Interface = i }));
-
-        foreach (var handler in handlerTypes)
-            services.AddScoped(handler.Interface, handler.Implementation);
-
-        // register behaviors — order matters, first registered = outermost wrapper
-        services.AddScoped(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
-        services.AddScoped(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
-
-        // register validators
-        var validatorTypes = assembly.GetTypes()
-            .Where(t => !t.IsAbstract && !t.IsInterface)
-            .SelectMany(t => t.GetInterfaces()
-                .Where(i => i.IsGenericType &&
-                            i.GetGenericTypeDefinition() == typeof(IValidator<>))
-                .Select(i => new { Implementation = t, Interface = i }));
-
-        foreach (var validator in validatorTypes)
-            services.AddScoped(validator.Interface, validator.Implementation);
+        // feature services
+        services.AddScoped<Features.Identity.AuthService>();
+        services.AddScoped<Features.FoodCatalog.FoodCatalogService>();
+        services.AddScoped<Features.MealLogging.MealLoggingService>();
+        services.AddScoped<Features.Recipes.RecipeService>();
 
         return services;
     }

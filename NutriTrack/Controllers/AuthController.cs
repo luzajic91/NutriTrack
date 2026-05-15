@@ -1,31 +1,31 @@
-﻿namespace NutriTrack.Api.Controllers;
+namespace NutriTrack.Api.Controllers;
 
 [ApiController]
 [Route("api/auth")]
 public class AuthController : ControllerBase
 {
-    private readonly Dispatcher _dispatcher;
+    private readonly AuthService _auth;
 
-    public AuthController(Dispatcher dispatcher) => _dispatcher = dispatcher;
+    public AuthController(AuthService auth) => _auth = auth;
 
     [HttpPost("register")]
     public async Task<IActionResult> Register(RegisterCommand cmd, CancellationToken ct)
     {
-        var userId = await _dispatcher.Send(cmd, ct);
+        var userId = await _auth.Register(cmd, ct);
         return CreatedAtAction(nameof(Register), new { userId });
     }
 
     [HttpPost("login")]
     public async Task<IActionResult> Login(LoginCommand cmd, CancellationToken ct)
     {
-        var result = await _dispatcher.Send(cmd, ct);
+        var result = await _auth.Login(cmd, ct);
         return Ok(result);
     }
 
     [HttpPost("refresh-token")]
     public async Task<IActionResult> RefreshToken(RefreshTokenCommand cmd, CancellationToken ct)
     {
-        var result = await _dispatcher.Send(cmd, ct);
+        var result = await _auth.RefreshToken(cmd, ct);
         return Ok(result);
     }
 
@@ -33,7 +33,7 @@ public class AuthController : ControllerBase
     [Authorize]
     public async Task<IActionResult> RevokeToken(RevokeTokenCommand cmd, CancellationToken ct)
     {
-        await _dispatcher.Send(cmd, ct);
+        await _auth.RevokeToken(cmd, ct);
         return NoContent();
     }
 }

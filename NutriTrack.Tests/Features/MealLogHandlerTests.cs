@@ -1,5 +1,6 @@
-﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using System.Security.Claims;
 
 namespace NutriTrack.Tests.Features;
@@ -25,6 +26,9 @@ public class LogMealHandlerTests
         return new CurrentUserService(accessor.Object);
     }
 
+    private static MealLoggingService CreateService(NutriTrackDbContext db, CurrentUserService user) =>
+        new(db, user, null!, new LogMealValidator(), NullLogger<MealLoggingService>.Instance);
+
     [Fact]
     public async Task Handle_DirectFoodEntry_PersistsMealWithCorrectGrams()
     {
@@ -32,8 +36,8 @@ public class LogMealHandlerTests
         db.Foods.Add(new Food { FoodId = 1, Name = "Chicken" });
         await db.SaveChangesAsync();
 
-        var handler = new LogMealHandler(db, CreateUser());
-        await handler.Handle(
+        var service = CreateService(db, CreateUser());
+        await service.LogMeal(
             new LogMealCommand([new MealFoodEntry(1, 150)], [], null),
             CancellationToken.None);
 
@@ -62,8 +66,8 @@ public class LogMealHandlerTests
         });
         await db.SaveChangesAsync();
 
-        var handler = new LogMealHandler(db, CreateUser());
-        await handler.Handle(
+        var service = CreateService(db, CreateUser());
+        await service.LogMeal(
             new LogMealCommand([], [new MealRecipeEntry(1, 250)], null),
             CancellationToken.None);
 
@@ -78,8 +82,8 @@ public class LogMealHandlerTests
     {
         await using var db = CreateDb();
 
-        var handler = new LogMealHandler(db, CreateUser());
-        var act = async () => await handler.Handle(
+        var service = CreateService(db, CreateUser());
+        var act = async () => await service.LogMeal(
             new LogMealCommand([new MealFoodEntry(99, 100)], [], null),
             CancellationToken.None);
 
@@ -102,8 +106,8 @@ public class LogMealHandlerTests
         });
         await db.SaveChangesAsync();
 
-        var handler = new LogMealHandler(db, CreateUser(userId: 1));
-        var act = async () => await handler.Handle(
+        var service = CreateService(db, CreateUser(userId: 1));
+        var act = async () => await service.LogMeal(
             new LogMealCommand([], [new MealRecipeEntry(1, 100)], null),
             CancellationToken.None);
 
