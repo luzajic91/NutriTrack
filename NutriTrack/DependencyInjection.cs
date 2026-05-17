@@ -1,4 +1,13 @@
-﻿namespace NutriTrack.Core;
+using System.Data;
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using NutriTrack.Core.Auth;
+using NutriTrack.Core.Persistence;
+
+namespace NutriTrack.Api;
 
 public static class DependencyInjection
 {
@@ -36,18 +45,18 @@ public static class DependencyInjection
         services.AddScoped<NutritionQueryService>();
 
         // validators
-        services.AddScoped<Features.Identity.RegisterValidator>();
-        services.AddScoped<Features.Identity.LoginValidator>();
-        services.AddScoped<Features.Identity.RefreshTokenValidator>();
-        services.AddScoped<Features.Identity.RevokeTokenValidator>();
-        services.AddScoped<Features.MealLogging.LogMealValidator>();
-        services.AddScoped<Features.Recipes.CreateRecipeValidator>();
+        services.AddScoped<RegisterValidator>();
+        services.AddScoped<LoginValidator>();
+        services.AddScoped<RefreshTokenValidator>();
+        services.AddScoped<RevokeTokenValidator>();
+        services.AddScoped<LogMealValidator>();
+        services.AddScoped<CreateRecipeValidator>();
 
         // feature services
-        services.AddScoped<Features.Identity.AuthService>();
-        services.AddScoped<Features.FoodCatalog.FoodCatalogService>();
-        services.AddScoped<Features.MealLogging.MealLoggingService>();
-        services.AddScoped<Features.Recipes.RecipeService>();
+        services.AddScoped<AuthService>();
+        services.AddScoped<FoodCatalogService>();
+        services.AddScoped<MealLoggingService>();
+        services.AddScoped<RecipeService>();
 
         return services;
     }
