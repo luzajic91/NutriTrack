@@ -9,7 +9,7 @@ public class NutrientConfiguration : IEntityTypeConfiguration<Nutrient>
         b.Property(x => x.Name).HasMaxLength(50).IsRequired();
         b.Property(x => x.Abv).HasMaxLength(20).IsRequired();
         b.Property(x => x.MeasurementUnit)
-         .HasConversion<int>()
-         .IsRequired();
+            .HasConversion<int>()
+            .IsRequired();
     }
 }

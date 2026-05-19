@@ -3,8 +3,10 @@
     <Build Solution="Debug|*" Project="false" />
   </Project>
   <Project Path="NutriTrack.Domain/NutriTrack.Domain.csproj" Id="164fb5e3-6a92-4b04-aabd-b2fbe24c999e" />
+  <Project Path="NutriTrack.Shared/NutriTrack.Shared.csproj" />
   <Project Path="NutriTrack.Tests/NutriTrack.Tests.csproj" Id="c84640cf-e041-4680-953c-ec8530da206d">
     <Build Solution="Debug|*" Project="false" />
   </Project>
+  <Project Path="NutriTrack.Web/NutriTrack.Web.csproj" Id="488984c5-5a7f-4c11-abb3-b2bba9220fd7" />
   <Project Path="NutriTrack/NutriTrack.Api.csproj" />
 </Solution>

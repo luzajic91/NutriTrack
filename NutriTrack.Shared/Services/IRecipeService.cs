@@ -1,0 +1,11 @@
+﻿using NutriTrack.Shared.Models.Recipes;
+
+namespace NutriTrack.Shared.Services;
+
+public interface IRecipeService
+{
+    Task<List<RecipeSummaryDto>> GetMyRecipesAsync();
+    Task<RecipeDto> GetRecipeAsync(int id);
+    Task<int> CreateRecipeAsync(CreateRecipeRequest request);
+    Task DeleteRecipeAsync(int id);
+}
