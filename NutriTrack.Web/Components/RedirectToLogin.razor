@@ -1,9 +1,16 @@
-﻿@inject NavigationManager Nav
+﻿@inject NavigationManager Navigation
 
 @code {
     protected override void OnInitialized()
     {
-        var returnUrl = Uri.EscapeDataString(Nav.Uri);
-        Nav.NavigateTo($"/login?returnUrl={returnUrl}");
+        // Capture current URL (where user tried to go)
+        var returnUrl = Navigation.Uri;
+
+        // Escape it for use in query string
+        var encodedReturnUrl = Uri.EscapeDataString(returnUrl);
+
+        // Redirect to login with return URL
+        // Example: User tried /recipes → Redirect to /login?returnUrl=https://localhost:5000/recipes
+        Navigation.NavigateTo($"/login?returnUrl={encodedReturnUrl}");
     }
 }

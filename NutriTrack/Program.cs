@@ -16,6 +16,16 @@ builder.Services.AddOpenApi(options =>
     });
 });
 
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.AllowAnyOrigin()      // Allow requests from any origin
+              .AllowAnyMethod()       // Allow GET, POST, PUT, DELETE, etc.
+              .AllowAnyHeader();      // Allow any headers
+    });
+});
+
 builder.Services.AddCore(builder.Configuration);
 
 var app = builder.Build();
@@ -32,6 +42,8 @@ if (app.Environment.IsDevelopment())
             .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
     });
 }
+
+app.UseCors();
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseAuthentication();

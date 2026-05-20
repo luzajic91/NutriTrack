@@ -1,0 +1,180 @@
+﻿@page "/login"
+@layout LoginLayout
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>Login - NutriTrack</PageTitle>
+
+<div class="login-card">
+    <h2>Welcome Back</h2>
+    <p class="subtitle">Sign in to your NutriTrack account</p>
+
+    @* Error Alert *@
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="alert alert-danger" role="alert">
+            @_errorMessage
+        </div>
+    }
+
+    @* Login Form *@
+    <EditForm Model="@_model" OnValidSubmit="HandleLogin">
+        <DataAnnotationsValidator />
+
+        @* Email Field *@
+        <div class="form-group">
+            <label class="form-label" for="email">Email Address</label>
+            <InputText id="email"
+                       class="form-control"
+                       @bind-Value="_model.Email"
+                       placeholder="you@example.com"
+                       disabled="@_isLoading" />
+            <ValidationMessage For="@(() => _model.Email)" class="validation-message" />
+        </div>
+
+        @* Password Field *@
+        <div class="form-group">
+            <label class="form-label" for="password">Password</label>
+            <InputText id="password"
+                       type="password"
+                       class="form-control"
+                       @bind-Value="_model.Password"
+                       placeholder="Enter your password"
+                       disabled="@_isLoading" />
+            <ValidationMessage For="@(() => _model.Password)" class="validation-message" />
+        </div>
+
+        @* Submit Button *@
+        <button type="submit" class="btn btn-primary" disabled="@_isLoading">
+            @if (_isLoading)
+            {
+                <span class="spinner"></span>
+                <span>Signing in...</span>
+            }
+            else
+            {
+                <span>Sign In</span>
+            }
+        </button>
+    </EditForm>
+
+    @* Divider *@
+    <div class="divider">or</div>
+
+    @* Sign Up Link *@
+    <div class="signup-prompt">
+        Don't have an account? <a href="/register">Sign up</a>
+    </div>
+</div>
+
+@code {
+    // Model for form binding
+    private LoginRequest _model = new();
+
+    // State
+    private bool _isLoading = false;
+    private string? _errorMessage;
+
+    // Query parameter for return URL
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    public string? ReturnUrl { get; set; }
+
+    /// <summary>
+    /// Called when form is submitted and validation passes.
+    /// SQL Analogy: EXEC sp_HandleLogin @Email, @Password, @ReturnUrl
+    /// </summary>
+    private async Task HandleLogin()
+    {
+        // Step 1: Clear any previous errors
+        _errorMessage = null;
+
+        // Step 2: Set loading state (disables button, shows spinner)
+        _isLoading = true;
+
+        try
+        {
+            // Step 3: Call AuthService to login
+            // This will:
+            // - Call POST /api/auth/login
+            // - Store tokens in LocalStorage
+            // - Notify AuthStateProvider (triggers auth state change)
+            await AuthService.LoginAsync(_model.Email, _model.Password);
+
+            // Step 4: Login successful! Redirect user
+
+            // If user was trying to access a specific page before login,
+            // redirect back to that page
+            if (!string.IsNullOrEmpty(ReturnUrl))
+            {
+                // Decode the return URL
+                // Example: returnUrl = "https%3A%2F%2Flocalhost%3A5000%2Frecipes"
+                //          decoded = "https://localhost:5000/recipes"
+                var decodedUrl = Uri.UnescapeDataString(ReturnUrl);
+
+                // Extract just the path (remove domain)
+                // "https://localhost:5000/recipes" → "/recipes"
+                var uri = new Uri(decodedUrl);
+                var returnPath = uri.PathAndQuery;
+
+                Navigation.NavigateTo(returnPath);
+            }
+            else
+            {
+                // No return URL - go to home page
+                Navigation.NavigateTo("/");
+            }
+        }
+        catch (Exception ex)
+        {
+            // Step 5: Login failed - show error message
+            _errorMessage = ParseErrorMessage(ex.Message);
+        }
+        finally
+        {
+            // Step 6: Always clear loading state
+            _isLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// Parse error message from API response.
+    /// Makes error messages user-friendly.
+    /// </summary>
+    private string ParseErrorMessage(string errorMessage)
+    {
+        // API returns errors like: "Login failed: {\"error\":\"Invalid email or password.\"}"
+        // We want to extract just: "Invalid email or password."
+
+        try
+        {
+            // Check if error contains JSON
+            if (errorMessage.Contains("{\"error\""))
+            {
+                var startIndex = errorMessage.IndexOf("{\"error\"");
+                var jsonPart = errorMessage.Substring(startIndex);
+
+                // Parse JSON
+                var doc = System.Text.Json.JsonDocument.Parse(jsonPart);
+                if (doc.RootElement.TryGetProperty("error", out var errorProp))
+                {
+                    return errorProp.GetString() ?? "Login failed. Please try again.";
+                }
+            }
+
+            // If not JSON, check for common error messages
+            if (errorMessage.Contains("Invalid email or password"))
+                return "Invalid email or password.";
+
+            if (errorMessage.Contains("Email is already in use"))
+                return "Email is already in use.";
+
+            // Default error message
+            return "Login failed. Please check your credentials and try again.";
+        }
+        catch
+        {
+            // If parsing fails, return generic message
+            return "Login failed. Please try again.";
+        }
+    }
+}

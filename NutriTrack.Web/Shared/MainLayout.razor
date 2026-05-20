@@ -7,7 +7,15 @@
 
     <main>
         <div class="top-row px-4">
-            <a href="/logout" class="ml-md-auto">Logout</a>
+            <AuthorizeView>
+                <Authorized>
+                    <span class="me-3">Welcome, @context.User.Identity?.Name</span>
+                    <a href="/logout" class="btn btn-outline-light btn-sm">Logout</a>
+                </Authorized>
+                <NotAuthorized>
+                    <a href="/login" class="btn btn-outline-light btn-sm">Login</a>
+                </NotAuthorized>
+            </AuthorizeView>
         </div>
 
         <article class="content px-4">

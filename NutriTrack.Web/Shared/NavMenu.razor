@@ -10,23 +10,39 @@
     <nav class="flex-column">
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="oi oi-home" aria-hidden="true"></span> Dashboard
+                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Dashboard
             </NavLink>
         </div>
+
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="recipes">
-                <span class="oi oi-book" aria-hidden="true"></span> Recipes
+                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Recipes
             </NavLink>
         </div>
+
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="meals">
-                <span class="oi oi-fork" aria-hidden="true"></span> Meals
+                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Meals
             </NavLink>
         </div>
+
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="foods">
-                <span class="oi oi-magnifying-glass" aria-hidden="true"></span> Foods
+                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Foods
             </NavLink>
         </div>
     </nav>
 </div>
+
+<style>
+    .bi {
+        display: inline-block;
+        width: 1rem;
+        height: 1rem;
+        margin-right: 0.75rem;
+    }
+
+    .bi::before {
+        content: "▪";
+    }
+</style>

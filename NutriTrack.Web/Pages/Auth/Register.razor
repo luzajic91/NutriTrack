@@ -1,0 +1,166 @@
+﻿@page "/register"
+@layout LoginLayout
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>Register - NutriTrack</PageTitle>
+
+<div class="login-card">
+    <h2>Create Account</h2>
+    <p class="subtitle">Start tracking your nutrition today</p>
+
+    @* Success Message *@
+    @if (_registrationSuccess)
+    {
+        <div class="alert alert-success" role="alert">
+            <strong>Success!</strong> Your account has been created.
+            <a href="/login" class="alert-link">Click here to login</a>
+        </div>
+    }
+    else
+    {
+        @* Error Alert *@
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <div class="alert alert-danger" role="alert">
+                @_errorMessage
+            </div>
+        }
+
+        @* Registration Form *@
+        <EditForm Model="@_model" OnValidSubmit="HandleRegister">
+            <DataAnnotationsValidator />
+
+            @* Email Field *@
+            <div class="form-group">
+                <label class="form-label" for="email">Email Address</label>
+                <InputText id="email"
+                           class="form-control"
+                           @bind-Value="_model.Email"
+                           placeholder="you@example.com"
+                           disabled="@_isLoading" />
+                <ValidationMessage For="@(() => _model.Email)" class="validation-message" />
+            </div>
+
+            @* Password Field *@
+            <div class="form-group">
+                <label class="form-label" for="password">Password</label>
+                <InputText id="password"
+                           type="password"
+                           class="form-control"
+                           @bind-Value="_model.Password"
+                           placeholder="At least 6 characters"
+                           disabled="@_isLoading" />
+                <ValidationMessage For="@(() => _model.Password)" class="validation-message" />
+            </div>
+
+            @* Submit Button *@
+            <button type="submit" class="btn btn-primary" disabled="@_isLoading">
+                @if (_isLoading)
+                {
+                    <span class="spinner"></span>
+                    <span>Creating account...</span>
+                }
+                else
+                {
+                    <span>Create Account</span>
+                }
+            </button>
+        </EditForm>
+
+        @* Divider *@
+        <div class="divider">or</div>
+
+        @* Login Link *@
+        <div class="signup-prompt">
+            Already have an account? <a href="/login">Sign in</a>
+        </div>
+    }
+</div>
+
+@code {
+    // Model for form binding
+    private RegisterRequest _model = new();
+
+    // State
+    private bool _isLoading = false;
+    private bool _registrationSuccess = false;
+    private string? _errorMessage;
+
+    /// <summary>
+    /// Called when form is submitted and validation passes.
+    /// SQL Analogy: EXEC sp_HandleRegister @Email, @Password
+    /// </summary>
+    private async Task HandleRegister()
+    {
+        // Step 1: Clear any previous errors
+        _errorMessage = null;
+
+        // Step 2: Set loading state
+        _isLoading = true;
+
+        try
+        {
+            // Step 3: Call AuthService to register
+            // This will:
+            // - Call POST /api/auth/register
+            // - Return userId if successful
+            await AuthService.RegisterAsync(_model.Email, _model.Password);
+
+            // Step 4: Registration successful!
+            _registrationSuccess = true;
+
+            // Step 5: Auto-redirect to login after 2 seconds
+            await Task.Delay(2000);
+            Navigation.NavigateTo("/login");
+        }
+        catch (Exception ex)
+        {
+            // Step 6: Registration failed - show error message
+            _errorMessage = ParseErrorMessage(ex.Message);
+        }
+        finally
+        {
+            // Step 7: Always clear loading state
+            _isLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// Parse error message from API response.
+    /// </summary>
+    private string ParseErrorMessage(string errorMessage)
+    {
+        try
+        {
+            // Check if error contains JSON
+            if (errorMessage.Contains("{\"error\""))
+            {
+                var startIndex = errorMessage.IndexOf("{\"error\"");
+                var jsonPart = errorMessage.Substring(startIndex);
+
+                var doc = System.Text.Json.JsonDocument.Parse(jsonPart);
+                if (doc.RootElement.TryGetProperty("error", out var errorProp))
+                {
+                    return errorProp.GetString() ?? "Registration failed. Please try again.";
+                }
+            }
+
+            // Check for common errors
+            if (errorMessage.Contains("Email is already in use"))
+                return "This email is already registered. Please login instead.";
+
+            if (errorMessage.Contains("email"))
+                return "Please provide a valid email address.";
+
+            if (errorMessage.Contains("password"))
+                return "Password must be at least 6 characters long.";
+
+            return "Registration failed. Please try again.";
+        }
+        catch
+        {
+            return "Registration failed. Please try again.";
+        }
+    }
+}

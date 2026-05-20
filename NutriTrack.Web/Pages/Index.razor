@@ -5,11 +5,18 @@
 
 <h1>Welcome to NutriTrack!</h1>
 
-<div class="dashboard">
+<div class="dashboard mt-4">
     <p>Your nutrition tracking dashboard.</p>
 
-    <div class="quick-actions">
-        <a href="/meals/log" class="btn btn-primary">Log Meal</a>
+    <div class="quick-actions mt-4">
+        <a href="/meals/log" class="btn btn-primary me-2">Log Meal</a>
         <a href="/recipes" class="btn btn-secondary">View Recipes</a>
     </div>
 </div>
+
+<style>
+    .quick-actions {
+        display: flex;
+        gap: 1rem;
+    }
+</style>
