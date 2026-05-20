@@ -20,7 +20,6 @@
   <ItemGroup>
     <Folder Include="Pages\Meals\" />
     <Folder Include="Pages\Foods\" />
-    <Folder Include="Pages\Recipes\" />
   </ItemGroup>
 
   <ItemGroup>

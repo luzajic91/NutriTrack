@@ -1,0 +1,157 @@
+﻿@page "/recipes/{RecipeId:int}"
+@attribute [Authorize]
+@inject IRecipeService RecipeService
+@inject NavigationManager Navigation
+
+<PageTitle>@(_recipe?.Name ?? "Recipe Details") - NutriTrack</PageTitle>
+
+<div class="recipe-details-container">
+    @if (_isLoading)
+    {
+        <div class="loading-container">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p>Loading recipe...</p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="alert alert-danger" role="alert">
+            @_errorMessage
+        </div>
+        <button class="btn btn-secondary" @onclick="NavigateBack">Back to Recipes</button>
+    }
+    else if (_recipe != null)
+    {
+        <div class="recipe-header">
+            <div class="recipe-title-section">
+                <button class="btn-back" @onclick="NavigateBack">← Back</button>
+                <h1>@_recipe.Name</h1>
+                @if (_recipe.IsPublic)
+                {
+                    <span class="badge badge-public">🌐 Public</span>
+                }
+                else
+                {
+                    <span class="badge badge-private">🔒 Private</span>
+                }
+            </div>
+
+            <div class="recipe-actions">
+                <button class="btn btn-danger" @onclick="HandleDelete" disabled="@_isDeleting">
+                    @if (_isDeleting)
+                    {
+                        <span class="spinner-sm"></span>
+                        <span>Deleting...</span>
+                    }
+                    else
+                    {
+                        <span>🗑️ Delete</span>
+                    }
+                </button>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_recipe.Description))
+        {
+            <p class="recipe-description-full">@_recipe.Description</p>
+        }
+
+        <div class="recipe-info-cards">
+            <div class="info-card">
+                <div class="info-label">Servings</div>
+                <div class="info-value">@(_recipe.ServingsCount.ToString() ?? "N/A")</div>
+            </div>
+            <div class="info-card">
+                <div class="info-label">Total Weight</div>
+                <div class="info-value">@_recipe.TotalGrams.ToString("F0")g</div>
+            </div>
+            <div class="info-card">
+                <div class="info-label">Ingredients</div>
+                <div class="info-value">@_recipe.Items.Count</div>
+            </div>
+        </div>
+
+        <div class="recipe-section">
+            <h2>Ingredients</h2>
+            <div class="ingredients-list">
+                @foreach (var item in _recipe.Items)
+                {
+                    <div class="ingredient-item">
+                        <span class="ingredient-name">@item.FoodName</span>
+                        <span class="ingredient-amount">@item.Grams.ToString("F0")g</span>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int RecipeId { get; set; }
+
+    private RecipeDto? _recipe;
+    private bool _isLoading = true;
+    private bool _isDeleting = false;
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRecipe();
+    }
+
+    private async Task LoadRecipe()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+
+        try
+        {
+            _recipe = await RecipeService.GetRecipeAsync(RecipeId);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to load recipe: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task HandleDelete()
+    {
+        if (!await ConfirmDelete())
+            return;
+
+        _isDeleting = true;
+
+        try
+        {
+            await RecipeService.DeleteRecipeAsync(RecipeId);
+            Navigation.NavigateTo("/recipes");
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to delete recipe: {ex.Message}";
+        }
+        finally
+        {
+            _isDeleting = false;
+        }
+    }
+
+    private async Task<bool> ConfirmDelete()
+    {
+        // In a real app, you'd use a modal dialog
+        // For now, we'll just use browser confirm
+        return await Task.FromResult(true);
+    }
+
+    private void NavigateBack()
+    {
+        Navigation.NavigateTo("/recipes");
+    }
+}

@@ -1,0 +1,361 @@
+﻿@page "/recipes/create"
+@attribute [Authorize]
+@inject IRecipeService RecipeService
+@inject NavigationManager Navigation
+
+<PageTitle>Create Recipe - NutriTrack</PageTitle>
+
+<div class="create-recipe-container">
+    <div class="wizard-header">
+        <button class="btn-back" @onclick="HandleCancel">← Cancel</button>
+        <h1>Create New Recipe</h1>
+    </div>
+
+    @* Progress Steps *@
+    <div class="wizard-steps">
+        <div class="step @(_currentStep == 1 ? "active" : "") @(_currentStep > 1 ? "completed" : "")">
+            <div class="step-number">1</div>
+            <div class="step-label">Basic Info</div>
+        </div>
+        <div class="step-divider"></div>
+        <div class="step @(_currentStep == 2 ? "active" : "") @(_currentStep > 2 ? "completed" : "")">
+            <div class="step-number">2</div>
+            <div class="step-label">Add Foods</div>
+        </div>
+        <div class="step-divider"></div>
+        <div class="step @(_currentStep == 3 ? "active" : "")">
+            <div class="step-number">3</div>
+            <div class="step-label">Review</div>
+        </div>
+    </div>
+
+    @* Error Alert *@
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="alert alert-danger" role="alert">
+            @_errorMessage
+        </div>
+    }
+
+    @* Step 1: Basic Info *@
+    @if (_currentStep == 1)
+    {
+        <div class="wizard-content">
+            <h2>Recipe Details</h2>
+
+            <div class="form-group">
+                <label class="form-label" for="recipeName">Recipe Name *</label>
+                <input id="recipeName"
+                       type="text"
+                       class="form-control"
+                       @bind="_recipe.Name"
+                       placeholder="e.g., Chicken & Rice Bowl"
+                       maxlength="100" />
+                @if (_showValidation && string.IsNullOrWhiteSpace(_recipe.Name))
+                {
+                    <span class="validation-message">Recipe name is required</span>
+                }
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="description">Description (Optional)</label>
+                <textarea id="description"
+                          class="form-control"
+                          @bind="_recipe.Description"
+                          placeholder="Brief description of the recipe"
+                          rows="3"
+                          maxlength="200"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="servings">Number of Servings (Optional)</label>
+                <input id="servings"
+                       type="number"
+                       class="form-control"
+                       @bind="_recipe.ServingsCount"
+                       placeholder="e.g., 2"
+                       min="1"
+                       max="100" />
+            </div>
+
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" @bind="_recipe.IsPublic" />
+                    <span>Make this recipe public (visible to other users)</span>
+                </label>
+            </div>
+
+            <div class="wizard-actions">
+                <button class="btn btn-secondary" @onclick="HandleCancel">Cancel</button>
+                <button class="btn btn-primary" @onclick="GoToStep2">
+                    Next: Add Foods →
+                </button>
+            </div>
+        </div>
+    }
+
+    @* Step 2: Add Foods *@
+    @if (_currentStep == 2)
+    {
+        <div class="wizard-content">
+            <h2>Add Ingredients</h2>
+
+            @* Food Search *@
+            <div class="food-search-section">
+                <FoodSearchDropdown OnFoodsSelected="HandleMultiFoodSelected"
+                                    Placeholder="Search for foods (e.g., chicken breast, rice)" />
+            </div>
+
+            @* Added Items List *@
+            <div class="added-items-section">
+                <h3>Recipe Items (@_recipe.Items.Count)</h3>
+
+                @if (_recipe.Items.Any())
+                {
+                    <div class="items-list">
+                        @foreach (var item in _recipe.Items)
+                        {
+                            <div class="recipe-item">
+                                <div class="item-info">
+                                    <strong>@item.FoodName</strong>
+                                    <span class="item-grams">@item.Grams.ToString("F0")g</span>
+                                </div>
+                                <button class="btn-remove" @onclick="() => RemoveItem(item)">🗑️</button>
+                            </div>
+                        }
+
+                        <div class="total-weight">
+                            <strong>Total Weight:</strong>
+                            <span>@CalculateTotalWeight().ToString("F0")g</span>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted">No items added yet. Search and add foods above.</p>
+                }
+            </div>
+
+            @if (_showValidation && !_recipe.Items.Any())
+            {
+                <div class="alert alert-warning">
+                    Please add at least one food item to the recipe.
+                </div>
+            }
+
+            <div class="wizard-actions">
+                <button class="btn btn-secondary" @onclick="GoBackToStep1">← Back</button>
+                <button class="btn btn-primary" @onclick="GoToStep3">
+                    Next: Review →
+                </button>
+            </div>
+        </div>
+    }
+
+    @* Step 3: Review *@
+    @if (_currentStep == 3)
+    {
+        <div class="wizard-content">
+            <h2>Review Recipe</h2>
+
+            <div class="review-section">
+                <h3>Basic Information</h3>
+                <div class="review-item">
+                    <span class="review-label">Name:</span>
+                    <span class="review-value">@_recipe.Name</span>
+                </div>
+                @if (!string.IsNullOrEmpty(_recipe.Description))
+                {
+                    <div class="review-item">
+                        <span class="review-label">Description:</span>
+                        <span class="review-value">@_recipe.Description</span>
+                    </div>
+                }
+                <div class="review-item">
+                    <span class="review-label">Servings:</span>
+                    <span class="review-value">@(_recipe.ServingsCount?.ToString() ?? "Not specified")</span>
+                </div>
+                <div class="review-item">
+                    <span class="review-label">Visibility:</span>
+                    <span class="review-value">@(_recipe.IsPublic ? "🌐 Public" : "🔒 Private")</span>
+                </div>
+            </div>
+
+            <div class="review-section">
+                <h3>Ingredients (@_recipe.Items.Count items)</h3>
+                <div class="review-items-list">
+                    @foreach (var item in _recipe.Items)
+                    {
+                        <div class="review-ingredient">
+                            <span>@item.FoodName</span>
+                            <span>@item.Grams.ToString("F0")g</span>
+                        </div>
+                    }
+                    <div class="review-total">
+                        <strong>Total Weight:</strong>
+                        <strong>@CalculateTotalWeight().ToString("F0")g</strong>
+                    </div>
+                </div>
+            </div>
+
+            <div class="wizard-actions">
+                <button class="btn btn-secondary" @onclick="GoBackToStep2">← Back</button>
+                <button class="btn btn-primary" @onclick="SaveRecipe" disabled="@_isSaving">
+                    @if (_isSaving)
+                    {
+                        <span class="spinner-sm"></span>
+                        <span>Creating...</span>
+                    }
+                    else
+                    {
+                        <span>✓ Create Recipe</span>
+                    }
+                </button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    // Current wizard step (1, 2, or 3)
+    private int _currentStep = 1;
+
+    // Recipe being created
+    private CreateRecipeModel _recipe = new();
+
+    // State
+    private bool _showValidation = false;
+    private bool _isSaving = false;
+    private string? _errorMessage;
+
+    // Temporary model for building the recipe
+    private class CreateRecipeModel
+    {
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public int? ServingsCount { get; set; }
+        public bool IsPublic { get; set; }
+        public List<RecipeItemModel> Items { get; set; } = new();
+    }
+
+    private class RecipeItemModel
+    {
+        public int FoodId { get; set; }
+        public string FoodName { get; set; } = string.Empty;
+        public decimal Grams { get; set; }
+    }
+
+    // Navigation: Step 1 -> Step 2
+    private void GoToStep2()
+    {
+        _showValidation = true;
+
+        if (string.IsNullOrWhiteSpace(_recipe.Name))
+        {
+            _errorMessage = "Please enter a recipe name.";
+            return;
+        }
+
+        _errorMessage = null;
+        _currentStep = 2;
+    }
+
+    // Navigation: Step 2 -> Step 1
+    private void GoBackToStep1()
+    {
+        _currentStep = 1;
+    }
+
+    // Navigation: Step 2 -> Step 3
+    private void GoToStep3()
+    {
+        _showValidation = true;
+
+        if (!_recipe.Items.Any())
+        {
+            _errorMessage = "Please add at least one food item.";
+            return;
+        }
+
+        _errorMessage = null;
+        _currentStep = 3;
+    }
+
+    // Navigation: Step 3 -> Step 2
+    private void GoBackToStep2()
+    {
+        _currentStep = 2;
+    }
+
+    private void HandleMultiFoodSelected(List<FoodSelectionItem> selections)
+    {
+        foreach (var sel in selections)
+        {
+            if (_recipe.Items.Any(i => i.FoodId == sel.Food.FoodId))
+                continue;
+
+            _recipe.Items.Add(new RecipeItemModel
+            {
+                FoodId = sel.Food.FoodId,
+                FoodName = sel.Food.Name,
+                Grams = sel.Grams
+            });
+        }
+
+        _errorMessage = null;
+    }
+
+    // Remove item from recipe
+    private void RemoveItem(RecipeItemModel item)
+    {
+        _recipe.Items.Remove(item);
+    }
+
+    // Calculate total weight
+    private decimal CalculateTotalWeight()
+    {
+        return _recipe.Items.Sum(i => i.Grams);
+    }
+
+    // Save recipe
+    private async Task SaveRecipe()
+    {
+        _isSaving = true;
+        _errorMessage = null;
+
+        try
+        {
+            var request = new CreateRecipeRequest
+            {
+                Name = _recipe.Name,
+                Description = _recipe.Description,
+                ServingsCount = _recipe.ServingsCount,
+                IsPublic = _recipe.IsPublic,
+                Items = _recipe.Items.Select(i => new RecipeItemRequest
+                {
+                    FoodId = i.FoodId,
+                    Grams = i.Grams
+                }).ToList()
+            };
+
+            var recipeId = await RecipeService.CreateRecipeAsync(request);
+
+            // Navigate to the new recipe
+            Navigation.NavigateTo($"/recipes/{recipeId}");
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to create recipe: {ex.Message}";
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    // Cancel and go back
+    private void HandleCancel()
+    {
+        Navigation.NavigateTo("/recipes");
+    }
+}
