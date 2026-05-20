@@ -1,0 +1,128 @@
+﻿@page "/recipes"
+@attribute [Authorize]
+@inject IRecipeService RecipeService
+@inject NavigationManager Navigation
+
+<PageTitle>My Recipes - NutriTrack</PageTitle>
+
+<div class="recipe-list-container">
+    <div class="page-header">
+        <h1>My Recipes</h1>
+        <button class="btn btn-primary" @onclick="NavigateToCreate">
+            <span>➕</span> Create Recipe
+        </button>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="loading-container">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p>Loading your recipes...</p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="alert alert-danger" role="alert">
+            @_errorMessage
+        </div>
+        <button class="btn btn-secondary" @onclick="LoadRecipes">Retry</button>
+    }
+    else if (_recipes.Count == 0)
+    {
+        <div class="empty-state">
+            <div class="empty-icon">📖</div>
+            <h3>No recipes yet</h3>
+            <p>Create your first recipe to get started tracking meals!</p>
+            <button class="btn btn-primary" @onclick="NavigateToCreate">
+                Create Your First Recipe
+            </button>
+        </div>
+    }
+    else
+    {
+        <div class="recipe-grid">
+            @foreach (var recipe in _recipes)
+            {
+                <div class="recipe-card" @onclick="() => NavigateToDetails(recipe.RecipeId)">
+                    <div class="recipe-card-header">
+                        <h3>@recipe.Name</h3>
+                        @if (recipe.IsPublic)
+                        {
+                            <span class="badge badge-public">🌐 Public</span>
+                        }
+                        else
+                        {
+                            <span class="badge badge-private">🔒 Private</span>
+                        }
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(recipe.Description))
+                    {
+                        <p class="recipe-description">@recipe.Description</p>
+                    }
+
+                    <div class="recipe-stats">
+                        <div class="stat">
+                            <span class="stat-label">Servings</span>
+                            <span class="stat-value">@(recipe.ServingsCount.ToString() ?? "N/A")</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-label">Total</span>
+                            <span class="stat-value">@recipe.TotalGrams.ToString("F0")g</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-label">Items</span>
+                            <span class="stat-value">@recipe.ItemCount</span>
+                        </div>
+                    </div>
+
+                    <div class="recipe-card-footer">
+                        <span class="view-link">View Details →</span>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<RecipeSummaryDto> _recipes = new();
+    private bool _isLoading = true;
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRecipes();
+    }
+
+    private async Task LoadRecipes()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+
+        try
+        {
+            _recipes = await RecipeService.GetMyRecipesAsync();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to load recipes: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void NavigateToCreate()
+    {
+        Navigation.NavigateTo("/recipes/create");
+    }
+
+    private void NavigateToDetails(int recipeId)
+    {
+        Navigation.NavigateTo($"/recipes/{recipeId}");
+    }
+}

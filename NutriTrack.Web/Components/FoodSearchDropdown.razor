@@ -1,0 +1,211 @@
+@inject IFoodService FoodService
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<div class="food-search-dropdown" id="@_dropdownId">
+    <div class="food-search-input-wrapper">
+        <input type="text"
+               class="form-control search-input"
+               value="@_inputValue"
+               @oninput="HandleInput"
+               @onfocus="HandleFocus"
+               placeholder="@Placeholder"
+               autocomplete="off" />
+        @if (_isLoading)
+        {
+            <span class="food-search-spinner"></span>
+        }
+    </div>
+
+    @if (_isOpen)
+    {
+        <div class="food-search-results-dropdown">
+            <div class="food-multiselect-list">
+                @if (_isLoading)
+                {
+                    <div class="food-multiselect-loading">
+                        <span class="food-search-spinner food-search-spinner-inline"></span>
+                        Loading foods...
+                    </div>
+                }
+                else if (!FilteredFoods.Any())
+                {
+                    <div class="food-multiselect-empty">
+                        @(string.IsNullOrEmpty(_inputValue) ? "No foods available." : "No foods match your search.")
+                    </div>
+                }
+                else
+                {
+                    @foreach (var food in FilteredFoods)
+                    {
+                        var isChecked = _checkedIds.Contains(food.FoodId);
+                        <div class="food-multiselect-item @(isChecked ? "checked" : "")">
+                            <label class="food-multiselect-label">
+                                <input type="checkbox"
+                                       checked="@isChecked"
+                                       @onchange="e => ToggleItem(food, (bool)e.Value!)" />
+                                <div class="food-multiselect-info">
+                                    <span class="food-dropdown-name">@food.Name</span>
+                                    @if (!string.IsNullOrEmpty(food.BrandName))
+                                    {
+                                        <span class="food-dropdown-brand">@food.BrandName</span>
+                                    }
+                                </div>
+                            </label>
+                            @if (isChecked)
+                            {
+                                <div class="food-multiselect-grams-row">
+                                    <input type="number"
+                                           class="form-control form-control-sm food-multiselect-grams"
+                                           value="@_gramsMap[food.FoodId]"
+                                           @onchange="e => SetGrams(food.FoodId, e.Value)"
+                                           min="1"
+                                           step="1" />
+                                    <span class="food-multiselect-unit">g</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+            </div>
+
+            @if (!_isLoading)
+            {
+                <div class="food-multiselect-footer">
+                    @if (!string.IsNullOrEmpty(_errorMessage))
+                    {
+                        <span class="food-search-error">@_errorMessage</span>
+                    }
+                    <button type="button"
+                            class="btn btn-primary btn-sm"
+                            disabled="@(_checkedIds.Count == 0)"
+                            @onclick="ConfirmSelection">
+                        Add @_checkedIds.Count Selected
+                    </button>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string Placeholder { get; set; } = "Search for foods...";
+    [Parameter] public EventCallback<List<FoodSelectionItem>> OnFoodsSelected { get; set; }
+    [Parameter] public int PageSize { get; set; } = 50;
+
+    private string _inputValue = string.Empty;
+    private List<FoodSummaryDto> _allFoods = new();
+    private bool _isLoading = false;
+    private bool _isOpen = false;
+    private string? _errorMessage;
+    private readonly HashSet<int> _checkedIds = new();
+    private readonly Dictionary<int, decimal> _gramsMap = new();
+    private DotNetObjectReference<FoodSearchDropdown>? _selfRef;
+    private string _dropdownId = $"food-search-{Guid.NewGuid():N}";
+
+    private IEnumerable<FoodSummaryDto> FilteredFoods =>
+        string.IsNullOrWhiteSpace(_inputValue)
+            ? _allFoods
+            : _allFoods.Where(f =>
+                f.Name.Contains(_inputValue, StringComparison.OrdinalIgnoreCase) ||
+                (f.BrandName?.Contains(_inputValue, StringComparison.OrdinalIgnoreCase) == true));
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _selfRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("registerClickOutside", _selfRef, _dropdownId);
+        }
+    }
+
+    private async Task HandleFocus()
+    {
+        _isOpen = true;
+        if (!_allFoods.Any() && !_isLoading)
+        {
+            await LoadFoodsAsync();
+        }
+    }
+
+    private void HandleInput(ChangeEventArgs e)
+    {
+        _inputValue = e.Value?.ToString() ?? string.Empty;
+        _isOpen = true;
+    }
+
+    private async Task LoadFoodsAsync()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+
+        try
+        {
+            _allFoods = await FoodService.SearchFoodsAsync(null, pageSize: PageSize);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to load foods: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void ToggleItem(FoodSummaryDto food, bool isChecked)
+    {
+        if (isChecked)
+        {
+            _checkedIds.Add(food.FoodId);
+            _gramsMap[food.FoodId] = 100m;
+        }
+        else
+        {
+            _checkedIds.Remove(food.FoodId);
+            _gramsMap.Remove(food.FoodId);
+        }
+    }
+
+    private void SetGrams(int foodId, object? value)
+    {
+        if (decimal.TryParse(value?.ToString(), out var grams) && grams > 0)
+            _gramsMap[foodId] = grams;
+    }
+
+    private async Task ConfirmSelection()
+    {
+        if (_checkedIds.Count == 0)
+            return;
+
+        var selections = _allFoods
+            .Where(f => _checkedIds.Contains(f.FoodId))
+            .Select(f => new FoodSelectionItem(f, _gramsMap.TryGetValue(f.FoodId, out var g) ? g : 100m))
+            .ToList();
+
+        _inputValue = string.Empty;
+        _checkedIds.Clear();
+        _gramsMap.Clear();
+        _isOpen = false;
+
+        await OnFoodsSelected.InvokeAsync(selections);
+    }
+
+    [JSInvokable]
+    public void CloseDropdown()
+    {
+        _isOpen = false;
+        StateHasChanged();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("unregisterClickOutside", _dropdownId);
+        }
+        catch { }
+
+        _selfRef?.Dispose();
+    }
+}
