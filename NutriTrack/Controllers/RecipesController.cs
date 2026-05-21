@@ -30,6 +30,13 @@ public class RecipesController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("available")]
+    public async Task<IActionResult> ListAvailableRecipes(CancellationToken ct)
+    {
+        var result = await _recipes.ListAvailableRecipes(ct);
+        return Ok(result);
+    }
+
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> DeleteRecipe(int id, CancellationToken ct)
     {

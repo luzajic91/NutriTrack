@@ -1,0 +1,210 @@
+@page "/meals/log"
+@attribute [Authorize]
+@inject IMealService MealService
+@inject IRecipeService RecipeService
+@inject NavigationManager Navigation
+
+<div class="log-meal-container">
+
+    <div class="page-header">
+        <h1>Log Meal</h1>
+        <button class="btn btn-outline-secondary btn-sm" @onclick="NavigateBack">← Back</button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="alert alert-danger mb-3">@_errorMessage</div>
+    }
+
+    <!-- Add Foods & Recipes -->
+    <div class="log-meal-section">
+        <h2>🥑 Add Foods &amp; Recipes</h2>
+        <p class="text-muted small mb-3">
+            Click or type to search. Check items, set grams, then click Add Selected.
+            Recipes expand into their ingredients automatically.
+        </p>
+
+        @if (_isExpandingRecipes)
+        {
+            <div class="d-flex align-items-center gap-2 text-muted small mb-2">
+                <span class="food-search-spinner food-search-spinner-inline"></span>
+                Expanding recipe ingredients…
+            </div>
+        }
+
+        <FoodAndRecipeDropdown OnItemsSelected="HandleItemsSelectedAsync" />
+    </div>
+
+    <!-- When did you eat? -->
+    <div class="log-meal-section">
+        <h2>📅 When did you eat?</h2>
+        <div class="datetime-field">
+            <label for="consumedAt">Date &amp; Time</label>
+            <input id="consumedAt"
+                   type="datetime-local"
+                   class="form-control"
+                   style="max-width:260px"
+                   value="@_consumedAtString"
+                   @onchange="e => _consumedAtString = e.Value?.ToString() ?? string.Empty" />
+        </div>
+    </div>
+
+    <!-- Staged Items -->
+    @if (_stagedFoods.Any())
+    {
+        <div class="log-meal-section">
+            <h2>🛒 Items to Log</h2>
+            <ul class="staged-items">
+                @foreach (var (food, index) in _stagedFoods.Select((f, i) => (f, i)))
+                {
+                    <li class="staged-item-row">
+                        @if (food.FromRecipe != null)
+                        {
+                            <span class="staged-item-type staged-item-type-recipe" title="@food.FromRecipe">@food.FromRecipe</span>
+                        }
+                        else
+                        {
+                            <span class="staged-item-type staged-item-type-food">food</span>
+                        }
+                        <span class="staged-item-name">@food.FoodName</span>
+                        <span class="staged-item-grams">@food.Grams.ToString("0.#") g</span>
+                        <button class="staged-item-remove" title="Remove" @onclick="() => _stagedFoods.RemoveAt(index)">✕</button>
+                    </li>
+                }
+            </ul>
+        </div>
+    }
+
+    @if (_showValidation && !_stagedFoods.Any())
+    {
+        <div class="alert alert-warning mb-3">Add at least one food or recipe before logging.</div>
+    }
+
+    <!-- Submit -->
+    <div class="log-meal-actions">
+        <button class="btn btn-primary btn-lg"
+                @onclick="SubmitAsync"
+                disabled="@(_isSaving || _isExpandingRecipes)">
+            @if (_isSaving)
+            {
+                <span class="spinner-sm me-2"></span>
+            }
+            Log Meal
+        </button>
+        <button class="btn btn-outline-secondary" @onclick="NavigateBack" disabled="@_isSaving">Cancel</button>
+    </div>
+
+</div>
+
+@code {
+    private record StagedFood(int FoodId, string FoodName, decimal Grams, string? FromRecipe = null);
+
+    private bool _isSaving = false;
+    private bool _isExpandingRecipes = false;
+    private bool _showValidation = false;
+    private string? _errorMessage;
+
+    private string _consumedAtString = DateTime.Now.ToString("yyyy-MM-ddTHH:mm");
+    private List<StagedFood> _stagedFoods = new();
+
+    private async Task HandleItemsSelectedAsync(List<FoodOrRecipeSelectionItem> selections)
+    {
+        _errorMessage = null;
+
+        // Individual foods → add immediately
+        foreach (var item in selections.Where(s => !s.IsRecipe))
+        {
+            var existing = _stagedFoods.FirstOrDefault(f => f.FoodId == item.Id && f.FromRecipe == null);
+            if (existing != null)
+                _stagedFoods[_stagedFoods.IndexOf(existing)] = existing with { Grams = item.Grams };
+            else
+                _stagedFoods.Add(new StagedFood(item.Id, item.Name, item.Grams));
+        }
+
+        // Recipes → expand into ingredients
+        var recipeSelections = selections.Where(s => s.IsRecipe).ToList();
+        if (!recipeSelections.Any()) return;
+
+        _isExpandingRecipes = true;
+        StateHasChanged();
+
+        try
+        {
+            // Fetch all selected recipe details in parallel
+            var fetchTasks = recipeSelections
+                .Select(s => RecipeService.GetRecipeAsync(s.Id))
+                .ToList();
+
+            var recipeDtos = await Task.WhenAll(fetchTasks);
+
+            for (int i = 0; i < recipeSelections.Count; i++)
+            {
+                var selection = recipeSelections[i];
+                var recipe = recipeDtos[i];
+
+                if (recipe.TotalGrams <= 0)
+                {
+                    _errorMessage = $"Recipe \"{recipe.Name}\" has no total weight — edit it to add ingredients first.";
+                    continue;
+                }
+
+                var scale = selection.Grams / recipe.TotalGrams;
+
+                foreach (var ingredient in recipe.Items)
+                {
+                    _stagedFoods.Add(new StagedFood(
+                        ingredient.FoodId,
+                        ingredient.FoodName,
+                        Math.Round(ingredient.Grams * scale, 2),
+                        FromRecipe: recipe.Name));
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to expand recipe: {ex.Message}";
+        }
+        finally
+        {
+            _isExpandingRecipes = false;
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        _showValidation = true;
+
+        if (!_stagedFoods.Any())
+            return;
+
+        _isSaving = true;
+        _errorMessage = null;
+
+        try
+        {
+            DateTime? consumedAt = DateTime.TryParse(_consumedAtString, out var dt) ? dt : null;
+
+            var request = new LogMealRequest
+            {
+                Foods = _stagedFoods
+                    .Select(f => new MealFoodEntry { FoodId = f.FoodId, Grams = f.Grams })
+                    .ToList(),
+                Recipes = new List<MealRecipeEntry>(),
+                ConsumedAt = consumedAt
+            };
+
+            await MealService.LogMealAsync(request);
+            Navigation.NavigateTo("/meals");
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to log meal: {ex.Message}";
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private void NavigateBack() => Navigation.NavigateTo("/meals");
+}

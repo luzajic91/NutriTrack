@@ -16,5 +16,5 @@ public class MealFoodEntry
 public class MealRecipeEntry
 {
     public int RecipeId { get; set; }
-    public decimal ServingsConsumed { get; set; }
+    public decimal Grams { get; set; }
 }
