@@ -81,12 +81,12 @@
             <div class="form-group">
                 <label class="checkbox-label">
                     <input type="checkbox" @bind="_recipe.IsPublic" />
-                    <span>Make this recipe public (visible to other users)</span>
+                    <span>Make this recipe public</span>
                 </label>
             </div>
 
             <div class="wizard-actions">
-                <button class="btn btn-secondary" @onclick="HandleCancel">Cancel</button>
+                <button class="btn btn-primary" @onclick="HandleCancel">Cancel</button>
                 <button class="btn btn-primary" @onclick="GoToStep2">
                     Next: Add Foods →
                 </button>
@@ -103,7 +103,7 @@
             @* Food Search *@
             <div class="food-search-section">
                 <FoodSearchDropdown OnFoodsSelected="HandleMultiFoodSelected"
-                                    Placeholder="Search for foods (e.g., chicken breast, rice)" />
+                                    Placeholder="Search for foods" />
             </div>
 
             @* Added Items List *@
@@ -144,7 +144,7 @@
             }
 
             <div class="wizard-actions">
-                <button class="btn btn-secondary" @onclick="GoBackToStep1">← Back</button>
+                <button class="btn btn-primary" @onclick="GoBackToStep1">← Back</button>
                 <button class="btn btn-primary" @onclick="GoToStep3">
                     Next: Review →
                 </button>
@@ -199,7 +199,7 @@
             </div>
 
             <div class="wizard-actions">
-                <button class="btn btn-secondary" @onclick="GoBackToStep2">← Back</button>
+                <button class="btn btn-outline-secondary" @onclick="GoBackToStep2">← Back</button>
                 <button class="btn btn-primary" @onclick="SaveRecipe" disabled="@_isSaving">
                     @if (_isSaving)
                     {

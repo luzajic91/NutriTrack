@@ -8,20 +8,6 @@
     padding: 2rem;
 }
 
-.page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2rem;
-}
-
-    .page-header h1 {
-        font-size: 2rem;
-        font-weight: 700;
-        color: #333;
-        margin: 0;
-    }
-
 /* ============================================
    Recipe Grid
    ============================================ */
@@ -452,6 +438,10 @@
     padding-top: 2rem;
     border-top: 1px solid #e9ecef;
 }
+
+    .wizard-actions .btn {
+        min-width: 140px;
+    }
 
 /* ============================================
    Food Search
