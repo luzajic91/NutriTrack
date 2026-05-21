@@ -1,6 +1,10 @@
-﻿namespace NutriTrack.Shared.Services;
+using NutriTrack.Shared.Models.Meals;
+
+namespace NutriTrack.Shared.Services;
 
 public interface IMealService
 {
-    // Placeholder - we'll implement this in Phase 2
+    Task<int> LogMealAsync(LogMealRequest request);
+    Task<List<MealEntryDto>> GetMealHistoryAsync(DateOnly? from = null, DateOnly? to = null);
+    Task<DailyNutritionSummaryDto> GetDailySummaryAsync(DateOnly? date = null);
 }

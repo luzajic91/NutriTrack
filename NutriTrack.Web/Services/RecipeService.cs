@@ -44,6 +44,21 @@ public class RecipeService : IRecipeService
     /// Get a single recipe by ID.
     /// SQL Analogy: SELECT * FROM Recipes WHERE RecipeId = @Id
     /// </summary>
+    public async Task<List<RecipeSummaryDto>> GetAvailableRecipesAsync()
+    {
+        await EnsureAuthenticatedAsync();
+
+        var response = await _http.GetAsync("/api/recipes/available");
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            throw new Exception($"Failed to load available recipes: {error}");
+        }
+
+        return await response.Content.ReadFromJsonAsync<List<RecipeSummaryDto>>() ?? new List<RecipeSummaryDto>();
+    }
+
     public async Task<RecipeDto> GetRecipeAsync(int id)
     {
         await EnsureAuthenticatedAsync();

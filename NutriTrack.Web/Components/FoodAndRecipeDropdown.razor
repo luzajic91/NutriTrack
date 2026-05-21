@@ -1,0 +1,239 @@
+@inject IFoodService FoodService
+@inject IRecipeService RecipeService
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<div class="food-search-dropdown" id="@_dropdownId">
+    <div class="food-search-input-wrapper">
+        <input type="text"
+               class="form-control search-input"
+               value="@_filterText"
+               @oninput="HandleInput"
+               @onfocus="HandleFocus"
+               placeholder="@Placeholder"
+               autocomplete="off" />
+        @if (_isLoading)
+        {
+            <span class="food-search-spinner"></span>
+        }
+    </div>
+
+    @if (_isOpen)
+    {
+        <div class="food-search-results-dropdown">
+            <div class="food-multiselect-list">
+                @if (_isLoading)
+                {
+                    <div class="food-multiselect-loading">
+                        <span class="food-search-spinner food-search-spinner-inline"></span>
+                        Loading...
+                    </div>
+                }
+                else if (!string.IsNullOrEmpty(_loadError))
+                {
+                    <div class="food-search-error px-3 py-2">@_loadError</div>
+                }
+                else if (!FilteredItems.Any())
+                {
+                    <div class="food-multiselect-empty">
+                        @(_allItems.Any() ? "No items match your search." : "No foods or recipes available.")
+                    </div>
+                }
+                else
+                {
+                    @foreach (var item in FilteredItems)
+                    {
+                        var isChecked = _checkedKeys.Contains(item.Key);
+                        <div class="food-multiselect-item @(isChecked ? "checked" : "")">
+                            <label class="food-multiselect-label">
+                                <input type="checkbox"
+                                       checked="@isChecked"
+                                       @onchange="e => ToggleItem(item, (bool)e.Value!)" />
+                                <div class="food-multiselect-info">
+                                    <span class="food-dropdown-name">@item.Name</span>
+                                    @if (!string.IsNullOrEmpty(item.SubLabel))
+                                    {
+                                        <span class="food-dropdown-brand @(item.IsRecipe ? "item-badge-recipe" : "")">@item.SubLabel</span>
+                                    }
+                                </div>
+                            </label>
+                            @if (isChecked)
+                            {
+                                <div class="food-multiselect-grams-row">
+                                    <input type="number"
+                                           class="form-control form-control-sm food-multiselect-grams"
+                                           value="@_gramsMap[item.Key]"
+                                           @onchange="e => SetGrams(item.Key, e.Value)"
+                                           min="1"
+                                           step="1" />
+                                    <span class="food-multiselect-unit">g</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+            </div>
+
+            @if (!_isLoading)
+            {
+                <div class="food-multiselect-footer">
+                    <button type="button"
+                            class="btn btn-primary btn-sm"
+                            disabled="@(_checkedKeys.Count == 0)"
+                            @onclick="ConfirmSelectionAsync">
+                        Add @_checkedKeys.Count Selected
+                    </button>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public EventCallback<List<FoodOrRecipeSelectionItem>> OnItemsSelected { get; set; }
+    [Parameter] public string Placeholder { get; set; } = "Search foods and recipes...";
+    [Parameter] public int FoodPageSize { get; set; } = 50;
+
+    private record ListItem(string Key, string Name, string? SubLabel, bool IsRecipe, int Id, decimal DefaultGrams);
+
+    private bool _isOpen = false;
+    private bool _isLoading = false;
+    private string? _loadError;
+    private List<ListItem> _allItems = new();
+    private readonly HashSet<string> _checkedKeys = new();
+    private readonly Dictionary<string, decimal> _gramsMap = new();
+    private string _filterText = string.Empty;
+    private DotNetObjectReference<FoodAndRecipeDropdown>? _selfRef;
+    private string _dropdownId = $"food-recipe-multi-{Guid.NewGuid():N}";
+
+    private IEnumerable<ListItem> FilteredItems =>
+        string.IsNullOrWhiteSpace(_filterText)
+            ? _allItems
+            : _allItems.Where(i =>
+                i.Name.Contains(_filterText, StringComparison.OrdinalIgnoreCase) ||
+                (i.SubLabel?.Contains(_filterText, StringComparison.OrdinalIgnoreCase) == true));
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _selfRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("registerClickOutside", _selfRef, _dropdownId);
+        }
+    }
+
+    private async Task HandleFocus()
+    {
+        _isOpen = true;
+        if (!_allItems.Any() && !_isLoading)
+        {
+            await LoadItemsAsync();
+        }
+    }
+
+    private void HandleInput(ChangeEventArgs e)
+    {
+        _filterText = e.Value?.ToString() ?? string.Empty;
+        _isOpen = true;
+    }
+
+    private async Task LoadItemsAsync()
+    {
+        _isLoading = true;
+        _loadError = null;
+
+        try
+        {
+            var foodsTask = FoodService.SearchFoodsAsync(null, pageSize: FoodPageSize);
+            var recipesTask = RecipeService.GetAvailableRecipesAsync();
+
+            await Task.WhenAll(foodsTask, recipesTask);
+
+            var foods = foodsTask.Result.Select(f => new ListItem(
+                Key: $"food-{f.FoodId}",
+                Name: f.Name,
+                SubLabel: f.BrandName,
+                IsRecipe: false,
+                Id: f.FoodId,
+                DefaultGrams: 100m));
+
+            var recipes = recipesTask.Result.Select(r => new ListItem(
+                Key: $"recipe-{r.RecipeId}",
+                Name: r.Name,
+                SubLabel: r.TotalGrams > 0 ? $"recipe · {r.TotalGrams:0} g total" : "recipe",
+                IsRecipe: true,
+                Id: r.RecipeId,
+                DefaultGrams: r.TotalGrams > 0 ? r.TotalGrams : 100m));
+
+            _allItems = foods.Concat(recipes).OrderBy(i => i.Name).ToList();
+        }
+        catch (Exception ex)
+        {
+            _loadError = $"Failed to load items: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void ToggleItem(ListItem item, bool isChecked)
+    {
+        if (isChecked)
+        {
+            _checkedKeys.Add(item.Key);
+            _gramsMap[item.Key] = item.DefaultGrams;
+        }
+        else
+        {
+            _checkedKeys.Remove(item.Key);
+            _gramsMap.Remove(item.Key);
+        }
+    }
+
+    private void SetGrams(string key, object? value)
+    {
+        if (decimal.TryParse(value?.ToString(), out var grams) && grams > 0)
+            _gramsMap[key] = grams;
+    }
+
+    private async Task ConfirmSelectionAsync()
+    {
+        if (_checkedKeys.Count == 0) return;
+
+        var selections = _allItems
+            .Where(i => _checkedKeys.Contains(i.Key))
+            .Select(i => new FoodOrRecipeSelectionItem(
+                Id: i.Id,
+                Name: i.Name,
+                Grams: _gramsMap.TryGetValue(i.Key, out var g) ? g : i.DefaultGrams,
+                IsRecipe: i.IsRecipe,
+                RecipeTotalGrams: i.IsRecipe ? i.DefaultGrams : 0m))
+            .ToList();
+
+        _checkedKeys.Clear();
+        _gramsMap.Clear();
+        _filterText = string.Empty;
+        _isOpen = false;
+
+        await OnItemsSelected.InvokeAsync(selections);
+    }
+
+    [JSInvokable]
+    public void CloseDropdown()
+    {
+        _isOpen = false;
+        StateHasChanged();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("unregisterClickOutside", _dropdownId);
+        }
+        catch { }
+
+        _selfRef?.Dispose();
+    }
+}

@@ -1,0 +1,157 @@
+@page "/meals"
+@attribute [Authorize]
+@inject IMealService MealService
+@inject NavigationManager Navigation
+
+<div class="meals-container">
+
+    @if (_isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2 text-muted">Loading meals...</p>
+        </div>
+    }
+    else if (_loadError != null)
+    {
+        <div class="alert alert-danger">
+            <strong>Could not load meal data.</strong> @_loadError
+            <button class="btn btn-sm btn-outline-danger ms-3" @onclick="LoadDataAsync">Retry</button>
+        </div>
+    }
+    else
+    {
+        <!-- Header -->
+        <div class="page-header">
+            <h1>🍽️ Meals</h1>
+            <button class="btn btn-primary" @onclick="NavigateToLog">
+                + Log Meal
+            </button>
+        </div>
+
+        <!-- Today's Nutrition Summary -->
+        <section class="nutrition-summary">
+            <h2>Today's Nutrition</h2>
+
+            @if (_summary == null || !_summary.Nutrients.Any())
+            {
+                <p class="nutrition-empty">No meals logged today yet.</p>
+            }
+            else
+            {
+                <div class="nutrient-grid">
+                    @foreach (var nutrient in _summary.Nutrients)
+                    {
+                        <div class="nutrient-card">
+                            <div class="nutrient-value">
+                                @nutrient.Total.ToString("0.#")<span class="nutrient-unit">@nutrient.Abbreviation</span>
+                            </div>
+                            <div class="nutrient-name">@nutrient.Name</div>
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+
+        <!-- Meal History -->
+        <section class="history-section">
+            <h2>Recent Meals</h2>
+
+            @if (!_history.Any())
+            {
+                <div class="history-empty">
+                    <div class="empty-emoji">🥗</div>
+                    <p>No meals logged yet. Hit <strong>Log Meal</strong> to get started!</p>
+                </div>
+            }
+            else
+            {
+                @foreach (var group in _groupedHistory)
+                {
+                    <div class="history-date-group">
+                        <div class="history-date-label">@FormatDateLabel(group.Key)</div>
+
+                        @foreach (var entry in group.Value)
+                        {
+                            <div class="meal-card">
+                                <div class="meal-card-time">@entry.ConsumedAt.ToLocalTime().ToString("h:mm tt")</div>
+                                <ul class="meal-item-list">
+                                    @foreach (var item in entry.Items)
+                                    {
+                                        <li class="meal-item-row">
+                                            <span class="meal-item-name">@item.FoodName</span>
+                                            <span class="meal-item-grams">@item.Grams.ToString("0.#") g</span>
+                                        </li>
+                                    }
+                                </ul>
+                            </div>
+                        }
+                    </div>
+                }
+            }
+        </section>
+    }
+
+</div>
+
+@code {
+    private bool _isLoading = true;
+    private string? _loadError;
+    private DailyNutritionSummaryDto? _summary;
+    private List<MealEntryDto> _history = new();
+    private Dictionary<DateOnly, List<MealEntryDto>> _groupedHistory = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        _isLoading = true;
+        _loadError = null;
+
+        try
+        {
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            var sevenDaysAgo = today.AddDays(-6);
+
+            var summaryTask = MealService.GetDailySummaryAsync(today);
+            var historyTask = MealService.GetMealHistoryAsync(from: sevenDaysAgo);
+
+            await Task.WhenAll(summaryTask, historyTask);
+
+            _summary = summaryTask.Result;
+            _history = historyTask.Result;
+            _groupedHistory = GroupByDate(_history);
+        }
+        catch (Exception ex)
+        {
+            _loadError = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private static Dictionary<DateOnly, List<MealEntryDto>> GroupByDate(List<MealEntryDto> entries)
+    {
+        return entries
+            .GroupBy(e => DateOnly.FromDateTime(e.ConsumedAt.ToLocalTime()))
+            .OrderByDescending(g => g.Key)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(e => e.ConsumedAt).ToList());
+    }
+
+    private static string FormatDateLabel(DateOnly date)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        if (date == today) return "Today";
+        if (date == today.AddDays(-1)) return "Yesterday";
+        return date.ToString("dddd, MMMM d");
+    }
+
+    private void NavigateToLog() => Navigation.NavigateTo("/meals/log");
+}

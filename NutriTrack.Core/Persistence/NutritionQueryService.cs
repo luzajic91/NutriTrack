@@ -14,16 +14,15 @@ public class NutritionQueryService
         const string sql = """
             SELECT n.Name,
                    n.Abv,
-                   mu.Name AS Unit,
+                   n.Abv AS Unit,
                    SUM(fn.ValuePer100g * mei.Grams / 100) AS Total
             FROM   MealEntries me
             JOIN   MealEntryItems mei ON mei.MealEntryId = me.MealEntryId
             JOIN   FoodNutrients fn   ON fn.FoodId = mei.FoodId
             JOIN   Nutrients n        ON n.NutrientId = fn.NutrientId
-            JOIN   MeasurementUnits mu ON mu.MeasurementUnitId = n.MeasurementUnitId
             WHERE  me.UserId = @UserId
             AND    CAST(me.ConsumedAt AS DATE) = @Date
-            GROUP BY n.Name, n.Abv, mu.Name
+            GROUP BY n.Name, n.Abv
             """;
 
         var rows = await _db.QueryAsync<NutrientRow>(sql, new

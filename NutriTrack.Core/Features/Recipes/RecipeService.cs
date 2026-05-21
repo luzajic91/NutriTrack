@@ -110,6 +110,27 @@ public class RecipeService
         return result;
     }
 
+    public async Task<List<RecipeSummaryResponse>> ListAvailableRecipes(CancellationToken ct)
+    {
+        _logger.LogInformation("Handling {Method}", nameof(ListAvailableRecipes));
+
+        var result = await _db.Recipes
+            .Where(r => r.UserId == _currentUser.UserId || r.IsPublic)
+            .OrderBy(r => r.Name)
+            .Select(r => new RecipeSummaryResponse(
+                r.RecipeId,
+                r.Name,
+                r.Description,
+                r.ServingsCount,
+                r.TotalGrams,
+                r.IsPublic,
+                r.RecipeItems.Count))
+            .ToListAsync(ct);
+
+        _logger.LogInformation("Handled {Method}", nameof(ListAvailableRecipes));
+        return result;
+    }
+
     public async Task DeleteRecipe(int recipeId, CancellationToken ct)
     {
         _logger.LogInformation("Handling {Method}", nameof(DeleteRecipe));
