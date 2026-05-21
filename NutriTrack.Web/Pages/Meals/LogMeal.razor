@@ -187,7 +187,7 @@
             var request = new LogMealRequest
             {
                 Foods = _stagedFoods
-                    .Select(f => new MealFoodEntry { FoodId = f.FoodId, Grams = f.Grams })
+                    .Select(f => new MealFoodEntry(f.FoodId, f.Grams))
                     .ToList(),
                 Recipes = new List<MealRecipeEntry>(),
                 ConsumedAt = consumedAt

@@ -1,8 +1,8 @@
-﻿global using Microsoft.AspNetCore.Authorization;
+global using Microsoft.AspNetCore.Authorization;
 global using Microsoft.AspNetCore.Mvc;
-global using NutriTrack.Core.Common;
-global using NutriTrack.Core.Features.FoodCatalog;
-global using NutriTrack.Core.Features.Identity;
-global using NutriTrack.Core.Features.MealLogging;
-global using NutriTrack.Core.Features.Recipes;
+global using NutriTrack.Shared.Common;
+global using NutriTrack.Shared.Features.FoodCatalog;
+global using NutriTrack.Shared.Features.Identity;
+global using NutriTrack.Shared.Features.MealLogging;
+global using NutriTrack.Shared.Features.Recipes;
 global using Scalar.AspNetCore;

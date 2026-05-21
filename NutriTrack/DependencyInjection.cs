@@ -4,8 +4,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using NutriTrack.Core.Auth;
-using NutriTrack.Core.Persistence;
+using NutriTrack.Shared.Auth;
+using NutriTrack.Shared.Persistence;
 
 namespace NutriTrack.Api;
 

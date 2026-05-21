@@ -331,11 +331,7 @@
                 Description = _recipe.Description,
                 ServingsCount = _recipe.ServingsCount,
                 IsPublic = _recipe.IsPublic,
-                Items = _recipe.Items.Select(i => new RecipeItemRequest
-                {
-                    FoodId = i.FoodId,
-                    Grams = i.Grams
-                }).ToList()
+                Items = _recipe.Items.Select(i => new RecipeItemRequest(i.FoodId, i.Grams)).ToList()
             };
 
             var recipeId = await RecipeService.CreateRecipeAsync(request);

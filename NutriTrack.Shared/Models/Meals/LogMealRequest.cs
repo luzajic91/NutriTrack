@@ -1,20 +1,10 @@
-﻿namespace NutriTrack.Shared.Models.Meals;
+using NutriTrack.Shared.Features.MealLogging;
+
+namespace NutriTrack.Shared.Models.Meals;
 
 public class LogMealRequest
 {
-    public List<MealFoodEntry>? Foods { get; set; }
-    public List<MealRecipeEntry>? Recipes { get; set; }
+    public List<MealFoodEntry> Foods { get; set; } = new();
+    public List<MealRecipeEntry> Recipes { get; set; } = new();
     public DateTime? ConsumedAt { get; set; }
-}
-
-public class MealFoodEntry
-{
-    public int FoodId { get; set; }
-    public decimal Grams { get; set; }
-}
-
-public class MealRecipeEntry
-{
-    public int RecipeId { get; set; }
-    public decimal Grams { get; set; }
 }

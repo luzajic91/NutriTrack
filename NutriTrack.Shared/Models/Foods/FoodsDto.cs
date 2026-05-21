@@ -27,4 +27,7 @@ public class FoodSummaryDto
 
     [JsonPropertyName("brandName")]
     public string? BrandName { get; set; }
+
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
 }

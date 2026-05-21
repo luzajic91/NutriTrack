@@ -1,5 +1,6 @@
 ﻿using Blazored.LocalStorage;
 using Microsoft.AspNetCore.Components.Authorization;
+using NutriTrack.Shared.Features.Identity;
 using NutriTrack.Shared.Models.Auth;
 using NutriTrack.Shared.Services;
 using System.Net.Http.Json;

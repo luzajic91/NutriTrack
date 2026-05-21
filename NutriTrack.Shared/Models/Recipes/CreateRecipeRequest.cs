@@ -1,4 +1,5 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
+using NutriTrack.Shared.Features.Recipes;
 
 namespace NutriTrack.Shared.Models.Recipes;
 
@@ -18,13 +19,4 @@ public class CreateRecipeRequest
 
     [JsonPropertyName("items")]
     public List<RecipeItemRequest> Items { get; set; } = new();
-}
-
-public class RecipeItemRequest
-{
-    [JsonPropertyName("foodId")]
-    public int FoodId { get; set; }
-
-    [JsonPropertyName("grams")]
-    public decimal Grams { get; set; }
 }
