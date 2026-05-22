@@ -194,7 +194,7 @@
             };
 
             await MealService.LogMealAsync(request);
-            Navigation.NavigateTo("/meals");
+            Navigation.NavigateTo("/");
         }
         catch (Exception ex)
         {
@@ -206,5 +206,5 @@
         }
     }
 
-    private void NavigateBack() => Navigation.NavigateTo("/meals");
+    private void NavigateBack() => Navigation.NavigateTo("/");
 }
