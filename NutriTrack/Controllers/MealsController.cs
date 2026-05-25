@@ -35,4 +35,24 @@ public class MealsController : ControllerBase
         var result = await _meals.GetDailyNutritionSummary(queryDate, ct);
         return Ok(result);
     }
+
+    [HttpGet("summary")]
+    public async Task<IActionResult> GetSummaryRange(
+        [FromQuery] DateOnly from,
+        [FromQuery] DateOnly to,
+        CancellationToken ct)
+    {
+        var result = await _meals.GetSummaryRange(from, to, ct);
+        return Ok(result);
+    }
+
+    [HttpGet("calorie-trend")]
+    public async Task<IActionResult> GetCalorieTrend(
+        [FromQuery] DateOnly from,
+        [FromQuery] DateOnly to,
+        CancellationToken ct)
+    {
+        var result = await _meals.GetCalorieTrend(from, to, ct);
+        return Ok(result);
+    }
 }

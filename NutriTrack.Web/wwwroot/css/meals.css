@@ -348,6 +348,113 @@
 }
 
 /* ============================================
+   Macro Hero Row
+   ============================================ */
+
+.macro-hero {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.macro-card {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem 1rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    text-align: center;
+    border-top: 4px solid #667eea;
+}
+
+.macro-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #667eea;
+    line-height: 1.1;
+}
+
+.macro-unit {
+    font-size: 0.85rem;
+    color: #999;
+    margin-left: 3px;
+    font-weight: 400;
+}
+
+.macro-name {
+    font-size: 0.85rem;
+    color: #6c757d;
+    margin-top: 0.4rem;
+    font-weight: 500;
+}
+
+/* ============================================
+   Charts Row
+   ============================================ */
+
+.charts-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.chart-card {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.chart-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #444;
+    margin-bottom: 1rem;
+}
+
+.chart-canvas-wrap {
+    position: relative;
+    height: 220px;
+}
+
+/* ============================================
+   Micro Nutrients
+   ============================================ */
+
+.micro-section {
+    margin-bottom: 2.5rem;
+}
+
+    .micro-section h2 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #666;
+        margin-bottom: 0.75rem;
+    }
+
+.micro-nutrient-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 0.75rem;
+}
+
+/* ============================================
+   Per-meal Macros
+   ============================================ */
+
+.meal-card-macros {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 0.6rem;
+    padding-top: 0.6rem;
+    border-top: 1px solid #f0f0f0;
+    font-size: 0.78rem;
+    color: #888;
+}
+
+/* ============================================
    Responsive
    ============================================ */
 
@@ -355,6 +462,10 @@
     .meals-container,
     .log-meal-container {
         padding: 1rem;
+    }
+
+    .macro-hero {
+        grid-template-columns: repeat(2, 1fr);
     }
 
     .nutrient-grid {

@@ -83,6 +83,40 @@ public class MealService : IMealService
             ?? new DailyNutritionSummaryDto();
     }
 
+    public async Task<DailyNutritionSummaryDto> GetSummaryAsync(DateOnly from, DateOnly to)
+    {
+        await EnsureAuthenticatedAsync();
+
+        var query = $"/api/meals/summary?from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}";
+        var response = await _http.GetAsync(query);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            throw new Exception($"Failed to load nutrition summary: {error}");
+        }
+
+        return await response.Content.ReadFromJsonAsync<DailyNutritionSummaryDto>()
+            ?? new DailyNutritionSummaryDto();
+    }
+
+    public async Task<List<CalorieTrendPointDto>> GetCalorieTrendAsync(DateOnly from, DateOnly to)
+    {
+        await EnsureAuthenticatedAsync();
+
+        var query = $"/api/meals/calorie-trend?from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}";
+        var response = await _http.GetAsync(query);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            throw new Exception($"Failed to load calorie trend: {error}");
+        }
+
+        return await response.Content.ReadFromJsonAsync<List<CalorieTrendPointDto>>()
+            ?? new List<CalorieTrendPointDto>();
+    }
+
     private async Task EnsureAuthenticatedAsync()
     {
         var token = await _authService.GetAccessTokenAsync();
