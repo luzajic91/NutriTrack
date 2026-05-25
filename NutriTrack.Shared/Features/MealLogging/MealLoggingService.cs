@@ -104,6 +104,13 @@ public class MealLoggingService
             .Where(f => foodIds.Contains(f.FoodId))
             .ToDictionaryAsync(f => f.FoodId, f => f.Name, ct);
 
+        var effectiveFrom = from ?? DateOnly.FromDateTime(entries.LastOrDefault()?.ConsumedAt ?? DateTime.UtcNow);
+        var effectiveTo   = to   ?? DateOnly.FromDateTime(entries.FirstOrDefault()?.ConsumedAt ?? DateTime.UtcNow);
+
+        var macros = entries.Any()
+            ? await _nutritionQuery.GetMealMacrosAsync(_currentUser.UserId, effectiveFrom, effectiveTo)
+            : new Dictionary<int, List<NutrientTotalResponse>>();
+
         _logger.LogInformation("Handled {Method}", nameof(GetMealHistory));
         return entries.Select(e => new MealEntryResponse(
             e.MealEntryId,
@@ -111,7 +118,10 @@ public class MealLoggingService
             e.Items.Select(i => new MealEntryItemResponse(
                 i.FoodId,
                 foods.GetValueOrDefault(i.FoodId, "Unknown"),
-                i.Grams)).ToList())).ToList();
+                i.Grams)).ToList())
+        {
+            Macros = macros.GetValueOrDefault(e.MealEntryId)
+        }).ToList();
     }
 
     public async Task<DailyNutritionSummaryResponse> GetDailyNutritionSummary(
@@ -121,5 +131,25 @@ public class MealLoggingService
         var nutrients = await _nutritionQuery.GetDailySummaryAsync(_currentUser.UserId, date);
         _logger.LogInformation("Handled {Method}", nameof(GetDailyNutritionSummary));
         return new DailyNutritionSummaryResponse(date, nutrients);
+    }
+
+    public async Task<DailyNutritionSummaryResponse> GetSummaryRange(
+        DateOnly from, DateOnly to, CancellationToken ct)
+    {
+        _logger.LogInformation("Handling {Method}", nameof(GetSummaryRange));
+        var nutrients = from == to
+            ? await _nutritionQuery.GetDailySummaryAsync(_currentUser.UserId, from)
+            : await _nutritionQuery.GetSummaryRangeAsync(_currentUser.UserId, from, to);
+        _logger.LogInformation("Handled {Method}", nameof(GetSummaryRange));
+        return new DailyNutritionSummaryResponse(from, nutrients);
+    }
+
+    public async Task<List<CalorieTrendPointResponse>> GetCalorieTrend(
+        DateOnly from, DateOnly to, CancellationToken ct)
+    {
+        _logger.LogInformation("Handling {Method}", nameof(GetCalorieTrend));
+        var trend = await _nutritionQuery.GetCalorieTrendAsync(_currentUser.UserId, from, to);
+        _logger.LogInformation("Handled {Method}", nameof(GetCalorieTrend));
+        return trend;
     }
 }
