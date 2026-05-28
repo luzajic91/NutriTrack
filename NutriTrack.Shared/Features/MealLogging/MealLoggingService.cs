@@ -144,12 +144,4 @@ public class MealLoggingService
         return new DailyNutritionSummaryResponse(from, nutrients);
     }
 
-    public async Task<List<CalorieTrendPointResponse>> GetCalorieTrend(
-        DateOnly from, DateOnly to, CancellationToken ct)
-    {
-        _logger.LogInformation("Handling {Method}", nameof(GetCalorieTrend));
-        var trend = await _nutritionQuery.GetCalorieTrendAsync(_currentUser.UserId, from, to);
-        _logger.LogInformation("Handled {Method}", nameof(GetCalorieTrend));
-        return trend;
-    }
 }
