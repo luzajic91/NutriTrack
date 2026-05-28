@@ -46,13 +46,4 @@ public class MealsController : ControllerBase
         return Ok(result);
     }
 
-    [HttpGet("calorie-trend")]
-    public async Task<IActionResult> GetCalorieTrend(
-        [FromQuery] DateOnly from,
-        [FromQuery] DateOnly to,
-        CancellationToken ct)
-    {
-        var result = await _meals.GetCalorieTrend(from, to, ct);
-        return Ok(result);
-    }
 }

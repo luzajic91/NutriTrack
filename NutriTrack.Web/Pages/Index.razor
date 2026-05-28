@@ -34,13 +34,13 @@
             </button>
         </div>
 
-        <!-- Macro Hero Row -->
+        <!-- Macro Hero Row: Calories, Protein, Carbs, Fat, Fiber -->
         <section class="macro-hero">
             @foreach (var macro in MacroNutrients)
             {
                 <div class="macro-card">
                     <div class="macro-value">
-                        @macro.Total.ToString("0.#")<span class="macro-unit">@macro.Abbreviation</span>
+                        @macro.Total.ToString("0.#")<span class="macro-unit">@UnitShort(macro.Unit)</span>
                     </div>
                     <div class="macro-name">@macro.Name</div>
                 </div>
@@ -52,48 +52,39 @@
         </section>
 
         <!-- Charts Row -->
-        @if (MacroNutrients.Any() || _trend.Any())
-        {
-            <div class="charts-row">
-                @if (MacroNutrients.Count >= 3)
+        <div class="charts-row">
+            <!-- Macro Breakdown donut -->
+            @if (MacroNutrients.Count >= 3)
+            {
+                <div class="chart-card">
+                    <h3 class="chart-title">Macro Breakdown</h3>
+                    <div class="chart-canvas-wrap">
+                        <canvas id="macroDonut"></canvas>
+                    </div>
+                </div>
+            }
+
+            <!-- Micro Nutrients list (Fiber + all non-macro nutrients) -->
+            <div class="chart-card">
+                <h3 class="chart-title">Other Nutrients</h3>
+                @if (MicroNutrients.Any())
                 {
-                    <div class="chart-card">
-                        <h3 class="chart-title">Macro Breakdown</h3>
-                        <div class="chart-canvas-wrap">
-                            <canvas id="macroDonut"></canvas>
-                        </div>
+                    <div class="micro-list">
+                        @foreach (var n in MicroNutrients)
+                        {
+                            <div class="micro-list-row">
+                                <span class="micro-list-value">@n.Total.ToString("0.##") @UnitShort(n.Unit)</span>
+                                <span class="micro-list-name">@n.Name</span>
+                            </div>
+                        }
                     </div>
                 }
-                @if (_trend.Any())
+                else
                 {
-                    <div class="chart-card">
-                        <h3 class="chart-title">7-Day Calories</h3>
-                        <div class="chart-canvas-wrap">
-                            <canvas id="calorieTrend"></canvas>
-                        </div>
-                    </div>
+                    <p class="nutrition-empty">No other nutrients logged for this period.</p>
                 }
             </div>
-        }
-
-        <!-- Micro Nutrients -->
-        @if (MicroNutrients.Any())
-        {
-            <section class="micro-section">
-                <h2>Other Nutrients</h2>
-                <div class="micro-nutrient-grid">
-                    @foreach (var nutrient in MicroNutrients)
-                    {
-                        <div class="nutrient-card">
-                            <div class="nutrient-value">
-                                @nutrient.Total.ToString("0.#")<span class="nutrient-unit">@nutrient.Abbreviation</span>
-                            </div>
-                            <div class="nutrient-name">@nutrient.Name</div>
-                        </div>
-                    }
-                </div>
-            </section>
-        }
+        </div>
 
         <!-- Meal History -->
         <section class="history-section">
@@ -170,27 +161,37 @@
     private DailyNutritionSummaryDto? _summary;
     private List<MealEntryDto> _history = new();
     private Dictionary<DateOnly, List<MealEntryDto>> _groupedHistory = new();
-    private List<CalorieTrendPointDto> _trend = new();
+    private bool _chartsNeedRender;
 
-    private string _activeChip = "today";
+    private string _activeChip = "all";
     private DateOnly? _filterFrom;
     private DateOnly? _filterTo;
     private DateOnly? _customFrom;
     private DateOnly? _customTo;
 
-    private static readonly string[] MacroKeywords = ["Protein", "Carbohydrate", "Carb", "Fat", "Lipid"];
+    // Shown in macro hero: Calories + Protein + Carbs + Fat + Fiber
+    private static readonly string[] MacroKeywords =
+        ["Protein", "Carbohydrate", "Carb", "Fat", "Lipid", "Fiber", "Fibre"];
+
+    // Excluded from micro list: only the pure macros (Fiber intentionally kept in micro list too)
+    private static readonly string[] MacroOnlyKeywords =
+        ["Protein", "Carbohydrate", "Carb", "Fat", "Lipid"];
 
     private List<NutrientTotalDto> MacroNutrients => _summary?.Nutrients
         .Where(n => n.Unit == "Kilocalories" || IsMacroGram(n))
         .OrderBy(n => n.Unit == "Kilocalories" ? 0 : 1)
         .ToList() ?? new();
 
+    // Fiber + vitamins + minerals — everything except Calories, Protein, Carbs, Fat
     private List<NutrientTotalDto> MicroNutrients => _summary?.Nutrients
-        .Where(n => n.Unit != "Kilocalories" && !IsMacroGram(n))
+        .Where(n => n.Unit != "Kilocalories" && !IsMacroOnly(n))
         .ToList() ?? new();
 
     private static bool IsMacroGram(NutrientTotalDto n) =>
         n.Unit == "Grams" && MacroKeywords.Any(k => n.Name.Contains(k, StringComparison.OrdinalIgnoreCase));
+
+    private static bool IsMacroOnly(NutrientTotalDto n) =>
+        n.Unit == "Grams" && MacroOnlyKeywords.Any(k => n.Name.Contains(k, StringComparison.OrdinalIgnoreCase));
 
     private static List<NutrientTotalDto> EntryMacros(List<NutrientTotalDto> nutrients) =>
         nutrients.Where(n => n.Unit == "Kilocalories" || IsMacroGram(n)).ToList();
@@ -202,8 +203,11 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender)
-            await RenderChartsAsync();
+        if (_chartsNeedRender)
+        {
+            _chartsNeedRender = false;
+            await RenderDonutAsync();
+        }
     }
 
     private async Task LoadDataAsync()
@@ -215,22 +219,19 @@
 
         try
         {
-            var today = DateOnly.FromDateTime(DateTime.Today);
-            var trendFrom = today.AddDays(-6);
-
+            var today       = DateOnly.FromDateTime(DateTime.Today);
             var summaryFrom = _filterFrom ?? today;
             var summaryTo   = _filterTo   ?? today;
 
             var summaryTask = MealService.GetSummaryAsync(summaryFrom, summaryTo);
             var historyTask = MealService.GetMealHistoryAsync(from: _filterFrom, to: _filterTo);
-            var trendTask   = MealService.GetCalorieTrendAsync(trendFrom, today);
 
-            await Task.WhenAll(summaryTask, historyTask, trendTask);
+            await Task.WhenAll(summaryTask, historyTask);
 
-            _summary = summaryTask.Result;
-            _history = historyTask.Result;
-            _trend   = trendTask.Result;
+            _summary        = summaryTask.Result;
+            _history        = historyTask.Result;
             _groupedHistory = GroupByDate(_history);
+            _chartsNeedRender = true;
         }
         catch (Exception ex)
         {
@@ -255,12 +256,10 @@
 
             await Task.WhenAll(summaryTask, historyTask);
 
-            _summary = summaryTask.Result;
-            _history = historyTask.Result;
-            _groupedHistory = GroupByDate(_history);
-
-            StateHasChanged();
-            await RenderDonutAsync();
+            _summary          = summaryTask.Result;
+            _history          = historyTask.Result;
+            _groupedHistory   = GroupByDate(_history);
+            _chartsNeedRender = true;
         }
         catch (Exception ex)
         {
@@ -272,7 +271,7 @@
     {
         _activeChip = chip;
         _customFrom = null;
-        _customTo = null;
+        _customTo   = null;
         ApplyChipDates(chip);
         await LoadHistoryAndSummaryAsync();
     }
@@ -296,54 +295,41 @@
         _customFrom = DateOnly.TryParse(e.Value?.ToString(), out var d) ? d : null;
         _activeChip = "custom";
         _filterFrom = _customFrom;
-        _filterTo = _customTo;
+        _filterTo   = _customTo;
         await LoadHistoryAndSummaryAsync();
     }
 
     private async Task OnCustomToChanged(ChangeEventArgs e)
     {
-        _customTo = DateOnly.TryParse(e.Value?.ToString(), out var d) ? d : null;
+        _customTo   = DateOnly.TryParse(e.Value?.ToString(), out var d) ? d : null;
         _activeChip = "custom";
         _filterFrom = _customFrom;
-        _filterTo = _customTo;
+        _filterTo   = _customTo;
         await LoadHistoryAndSummaryAsync();
     }
 
-    private async Task RenderChartsAsync()
+    private static string UnitShort(string unit) => unit switch
     {
-        await RenderDonutAsync();
-        await RenderTrendAsync();
-    }
+        "Grams"        => "g",
+        "Miligrams"    => "mg",
+        "Micrograms"   => "µg",
+        "Mililiters"   => "mL",
+        "Kilocalories" => "kcal",
+        _              => unit
+    };
 
     private async Task RenderDonutAsync()
     {
-        var gramMacros = MacroNutrients.Where(n => n.Unit == "Grams").ToList();
+        // Donut shows only Protein, Carbs, Fat — not Fiber
+        var gramMacros = MacroNutrients.Where(n => n.Unit == "Grams" && IsMacroOnly(n)).ToList();
         if (gramMacros.Count < 2) return;
 
         var labels = gramMacros.Select(n => n.Name).ToArray();
         var values = gramMacros.Select(n => (double)n.Total).ToArray();
-        string[] colors = ["#667eea", "#f97316", "#22c55e", "#a855f7"];
+        string[] colors = ["#667eea", "#f97316", "#22c55e", "#a855f7", "#06b6d4"];
 
         await JS.InvokeVoidAsync("NutriCharts.renderDonut", "macroDonut",
             labels, values, colors[..Math.Min(labels.Length, colors.Length)]);
-    }
-
-    private async Task RenderTrendAsync()
-    {
-        if (!_trend.Any()) return;
-
-        var today = DateOnly.FromDateTime(DateTime.Today);
-        var allDays = Enumerable.Range(0, 7)
-            .Select(i => today.AddDays(-6 + i))
-            .ToList();
-
-        var trendMap = _trend.ToDictionary(t => t.Date, t => t.Calories);
-
-        var labels = allDays.Select(d => d.ToString("MMM d")).ToArray();
-        var values = allDays.Select(d => (double)(trendMap.GetValueOrDefault(d, 0))).ToArray();
-
-        await JS.InvokeVoidAsync("NutriCharts.renderBar", "calorieTrend",
-            labels, values, "#667eea99");
     }
 
     private static Dictionary<DateOnly, List<MealEntryDto>> GroupByDate(List<MealEntryDto> entries)
