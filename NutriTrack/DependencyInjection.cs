@@ -18,6 +18,9 @@ public static class DependencyInjection
         services.AddDbContext<NutriTrackDbContext>(options =>
             options.UseSqlServer(configuration.GetConnectionString("Default")));
 
+        var jwtSecret = configuration["Jwt:Secret"]
+            ?? throw new InvalidOperationException("Jwt:Secret is not configured.");
+
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
             {
@@ -30,7 +33,7 @@ public static class DependencyInjection
                     ValidIssuer = configuration["Jwt:Issuer"],
                     ValidAudience = configuration["Jwt:Audience"],
                     IssuerSigningKey = new SymmetricSecurityKey(
-                        Encoding.UTF8.GetBytes(configuration["Jwt:Secret"]!))
+                        Encoding.UTF8.GetBytes(jwtSecret))
                 };
             });
 

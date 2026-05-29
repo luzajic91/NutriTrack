@@ -8,8 +8,7 @@ public class NutritionQueryService
 
     public NutritionQueryService(IDbConnection db) => _db = db;
 
-    public async Task<List<NutrientTotalResponse>> GetDailySummaryAsync(
-        int userId, DateOnly date)
+    public async Task<List<NutrientTotalResponse>> GetDailySummaryAsync(int userId, DateOnly date)
     {
         const string sql = """
             SELECT n.Name,
@@ -31,9 +30,7 @@ public class NutritionQueryService
             Date = date.ToDateTime(TimeOnly.MinValue)
         });
 
-        return rows.Select(r => new NutrientTotalResponse(
-            r.Name, r.Abv, Math.Round(r.Total, 2),
-            ((MeasurementUnit)r.MeasurementUnit).ToString())).ToList();
+        return rows.Select(r => ToResponse(r.Name, r.Abv, r.MeasurementUnit, r.Total)).ToList();
     }
 
     public async Task<List<NutrientTotalResponse>> GetSummaryRangeAsync(
@@ -61,12 +58,10 @@ public class NutritionQueryService
             To = to.ToDateTime(TimeOnly.MaxValue)
         });
 
-        return rows.Select(r => new NutrientTotalResponse(
-            r.Name, r.Abv, Math.Round(r.Total, 2),
-            ((MeasurementUnit)r.MeasurementUnit).ToString())).ToList();
+        return rows.Select(r => ToResponse(r.Name, r.Abv, r.MeasurementUnit, r.Total)).ToList();
     }
 
-public async Task<Dictionary<int, List<NutrientTotalResponse>>> GetMealMacrosAsync(
+    public async Task<Dictionary<int, List<NutrientTotalResponse>>> GetMealMacrosAsync(
         int userId, DateOnly from, DateOnly to)
     {
         const string sql = """
@@ -95,10 +90,11 @@ public async Task<Dictionary<int, List<NutrientTotalResponse>>> GetMealMacrosAsy
             .GroupBy(r => r.MealEntryId)
             .ToDictionary(
                 g => g.Key,
-                g => g.Select(r => new NutrientTotalResponse(
-                    r.Name, r.Abv, Math.Round(r.Total, 2),
-                    ((MeasurementUnit)r.MeasurementUnit).ToString())).ToList());
+                g => g.Select(r => ToResponse(r.Name, r.Abv, r.MeasurementUnit, r.Total)).ToList());
     }
+
+    private static NutrientTotalResponse ToResponse(string name, string abv, int unit, decimal total) =>
+        new(name, abv, Nutrition.Round(total), ((MeasurementUnit)unit).ToDisplayString());
 
     private record NutrientRow(string Name, string Abv, int MeasurementUnit, decimal Total);
     private record MealNutrientRow(int MealEntryId, string Name, string Abv, int MeasurementUnit, decimal Total);

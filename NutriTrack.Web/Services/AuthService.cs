@@ -115,9 +115,7 @@ public class AuthService : IAuthService
         if (string.IsNullOrEmpty(accessToken))
             return null;
 
-        var isExpired = IsTokenExpired(accessToken);
-
-        if (isExpired)
+        if (JwtParser.IsExpired(accessToken, TimeSpan.FromMinutes(1)))
         {
             var refreshToken = await _localStorage.GetItemAsync<string>(RefreshTokenKey);
 
@@ -160,43 +158,5 @@ public class AuthService : IAuthService
         }
 
         return accessToken;
-    }
-
-    private bool IsTokenExpired(string token)
-    {
-        try
-        {
-            var parts = token.Split('.');
-            if (parts.Length != 3)
-                return true;
-
-            var payload = parts[1];
-
-            switch (payload.Length % 4)
-            {
-                case 2: payload += "=="; break;
-                case 3: payload += "="; break;
-            }
-
-            payload = payload.Replace('-', '+').Replace('_', '/');
-
-            var jsonBytes = Convert.FromBase64String(payload);
-            var json = System.Text.Encoding.UTF8.GetString(jsonBytes);
-
-            var doc = System.Text.Json.JsonDocument.Parse(json);
-            if (doc.RootElement.TryGetProperty("exp", out var expElement))
-            {
-                var exp = expElement.GetInt64();
-                var expirationTime = DateTimeOffset.FromUnixTimeSeconds(exp);
-
-                return expirationTime < DateTimeOffset.UtcNow.AddMinutes(1);
-            }
-
-            return true;
-        }
-        catch
-        {
-            return true;
-        }
     }
 }

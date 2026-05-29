@@ -13,8 +13,6 @@ public class FoodCatalogService
 
     public async Task<FoodResponse> GetFood(int foodId, CancellationToken ct)
     {
-        _logger.LogInformation("Handling {Method}", nameof(GetFood));
-
         var food = await _db.Foods
             .Include(f => f.Brand)
             .Include(f => f.FoodNutrients)
@@ -24,7 +22,6 @@ public class FoodCatalogService
             .FirstOrDefaultAsync(f => f.FoodId == foodId, ct)
             ?? throw new NotFoundException($"Food {foodId} not found.");
 
-        _logger.LogInformation("Handled {Method}", nameof(GetFood));
         return new FoodResponse(
             food.FoodId,
             food.Name,
@@ -45,8 +42,6 @@ public class FoodCatalogService
     public async Task<PagedResult<FoodSummaryResponse>> SearchFoods(
         string? search, int? brandId, int page, int pageSize, CancellationToken ct)
     {
-        _logger.LogInformation("Handling {Method}", nameof(SearchFoods));
-
         var query = _db.Foods
             .Include(f => f.Brand)
             .AsQueryable();
@@ -70,7 +65,6 @@ public class FoodCatalogService
                 f.Description))
             .ToListAsync(ct);
 
-        _logger.LogInformation("Handled {Method}", nameof(SearchFoods));
         return new PagedResult<FoodSummaryResponse>(items, totalCount, page, pageSize);
     }
 }
