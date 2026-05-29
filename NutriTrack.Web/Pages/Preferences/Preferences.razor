@@ -10,182 +10,46 @@
         <h1>My Preferences</h1>
     </div>
 
-    @if (_isLoading)
-    {
-        <div class="loading-container">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Loading...</span>
-            </div>
-            <p>Loading preferences...</p>
-        </div>
-    }
-    else if (!string.IsNullOrEmpty(_loadError))
-    {
-        <div class="alert alert-danger">@_loadError</div>
-    }
-    else
-    {
+    <LoadingOrError IsLoading="@_isLoading" ErrorMessage="@_loadError" OnRetry="LoadAsync" LoadingText="Loading preferences...">
         <div class="preferences-card">
             <h2>Body Tracking</h2>
             <div class="pref-rows">
-
-                <div class="pref-row">
-                    <span class="pref-label">Weight</span>
-                    @if (_editingField == "weightKg")
-                    {
-                        <div class="pref-edit-group">
-                            <input class="pref-input" type="number" step="0.1" min="0" max="999"
-                                   @bind="_editValueStr" @bind:event="oninput"
-                                   @onkeydown="HandleKeyDown" />
-                            <span class="pref-unit">kg</span>
-                            @if (!string.IsNullOrEmpty(_fieldError))
-                            {
-                                <span class="pref-error">@_fieldError</span>
-                            }
-                        </div>
-                        <div class="pref-actions">
-                            <button class="pref-btn-save" @onclick="SaveField" disabled="@_isSaving" title="Save">✓</button>
-                            <button class="pref-btn-cancel" @onclick="CancelEdit" title="Cancel">✗</button>
-                        </div>
-                    }
-                    else
-                    {
-                        <span class="pref-value">@((_prefs?.WeightKg ?? 0).ToString("F1")) kg</span>
-                        <button class="pref-btn-edit" @onclick='() => StartEdit("weightKg", (_prefs?.WeightKg ?? 0).ToString("F1"))' title="Edit">✏️</button>
-                    }
-                </div>
-
+                <EditablePreferenceField Label="Weight" Unit="kg" Value="_prefs.WeightKg"
+                                         Decimals="1" Min="0" Max="999" Step="0.1"
+                                         OnSave="v => SaveAsync(p => p.WeightKg = AsValue(v))" />
             </div>
         </div>
 
         <div class="preferences-card">
             <h2>Daily Macro Goals</h2>
             <div class="pref-rows">
-
-                <div class="pref-row">
-                    <span class="pref-label">Calories</span>
-                    @if (_editingField == "calorieGoal")
-                    {
-                        <div class="pref-edit-group">
-                            <input class="pref-input" type="number" min="0"
-                                   @bind="_editValueStr" @bind:event="oninput"
-                                   @onkeydown="HandleKeyDown" />
-                            <span class="pref-unit">kcal</span>
-                            @if (!string.IsNullOrEmpty(_fieldError))
-                            {
-                                <span class="pref-error">@_fieldError</span>
-                            }
-                        </div>
-                        <div class="pref-actions">
-                            <button class="pref-btn-save" @onclick="SaveField" disabled="@_isSaving" title="Save">✓</button>
-                            <button class="pref-btn-cancel" @onclick="CancelEdit" title="Cancel">✗</button>
-                        </div>
-                    }
-                    else
-                    {
-                        <span class="pref-value">@(_prefs?.CalorieGoal ?? 0) kcal</span>
-                        <button class="pref-btn-edit" @onclick='() => StartEdit("calorieGoal", (_prefs?.CalorieGoal ?? 0).ToString())' title="Edit">✏️</button>
-                    }
-                </div>
-
-                <div class="pref-row">
-                    <span class="pref-label">Protein</span>
-                    @if (_editingField == "proteinGoalG")
-                    {
-                        <div class="pref-edit-group">
-                            <input class="pref-input" type="number" min="0"
-                                   @bind="_editValueStr" @bind:event="oninput"
-                                   @onkeydown="HandleKeyDown" />
-                            <span class="pref-unit">g</span>
-                            @if (!string.IsNullOrEmpty(_fieldError))
-                            {
-                                <span class="pref-error">@_fieldError</span>
-                            }
-                        </div>
-                        <div class="pref-actions">
-                            <button class="pref-btn-save" @onclick="SaveField" disabled="@_isSaving" title="Save">✓</button>
-                            <button class="pref-btn-cancel" @onclick="CancelEdit" title="Cancel">✗</button>
-                        </div>
-                    }
-                    else
-                    {
-                        <span class="pref-value">@(_prefs?.ProteinGoalG ?? 0) g</span>
-                        <button class="pref-btn-edit" @onclick='() => StartEdit("proteinGoalG", (_prefs?.ProteinGoalG ?? 0).ToString())' title="Edit">✏️</button>
-                    }
-                </div>
-
-                <div class="pref-row">
-                    <span class="pref-label">Carbs</span>
-                    @if (_editingField == "carbGoalG")
-                    {
-                        <div class="pref-edit-group">
-                            <input class="pref-input" type="number" min="0"
-                                   @bind="_editValueStr" @bind:event="oninput"
-                                   @onkeydown="HandleKeyDown" />
-                            <span class="pref-unit">g</span>
-                            @if (!string.IsNullOrEmpty(_fieldError))
-                            {
-                                <span class="pref-error">@_fieldError</span>
-                            }
-                        </div>
-                        <div class="pref-actions">
-                            <button class="pref-btn-save" @onclick="SaveField" disabled="@_isSaving" title="Save">✓</button>
-                            <button class="pref-btn-cancel" @onclick="CancelEdit" title="Cancel">✗</button>
-                        </div>
-                    }
-                    else
-                    {
-                        <span class="pref-value">@(_prefs?.CarbGoalG ?? 0) g</span>
-                        <button class="pref-btn-edit" @onclick='() => StartEdit("carbGoalG", (_prefs?.CarbGoalG ?? 0).ToString())' title="Edit">✏️</button>
-                    }
-                </div>
-
-                <div class="pref-row">
-                    <span class="pref-label">Fat</span>
-                    @if (_editingField == "fatGoalG")
-                    {
-                        <div class="pref-edit-group">
-                            <input class="pref-input" type="number" min="0"
-                                   @bind="_editValueStr" @bind:event="oninput"
-                                   @onkeydown="HandleKeyDown" />
-                            <span class="pref-unit">g</span>
-                            @if (!string.IsNullOrEmpty(_fieldError))
-                            {
-                                <span class="pref-error">@_fieldError</span>
-                            }
-                        </div>
-                        <div class="pref-actions">
-                            <button class="pref-btn-save" @onclick="SaveField" disabled="@_isSaving" title="Save">✓</button>
-                            <button class="pref-btn-cancel" @onclick="CancelEdit" title="Cancel">✗</button>
-                        </div>
-                    }
-                    else
-                    {
-                        <span class="pref-value">@(_prefs?.FatGoalG ?? 0) g</span>
-                        <button class="pref-btn-edit" @onclick='() => StartEdit("fatGoalG", (_prefs?.FatGoalG ?? 0).ToString())' title="Edit">✏️</button>
-                    }
-                </div>
-
+                <EditablePreferenceField Label="Calories" Unit="kcal" Value="_prefs.CalorieGoal"
+                                         OnSave="v => SaveAsync(p => p.CalorieGoal = AsGoal(v))" />
+                <EditablePreferenceField Label="Protein" Unit="g" Value="_prefs.ProteinGoalG"
+                                         OnSave="v => SaveAsync(p => p.ProteinGoalG = AsGoal(v))" />
+                <EditablePreferenceField Label="Carbs" Unit="g" Value="_prefs.CarbGoalG"
+                                         OnSave="v => SaveAsync(p => p.CarbGoalG = AsGoal(v))" />
+                <EditablePreferenceField Label="Fat" Unit="g" Value="_prefs.FatGoalG"
+                                         OnSave="v => SaveAsync(p => p.FatGoalG = AsGoal(v))" />
             </div>
         </div>
-    }
+    </LoadingOrError>
 </div>
 
 @code {
-    private UserPreferencesDto? _prefs;
+    private UserPreferencesDto _prefs = new();
     private bool _isLoading = true;
     private string? _loadError;
 
-    private string? _editingField;
-    private string _editValueStr = string.Empty;
-    private string? _fieldError;
-    private bool _isSaving;
+    protected override async Task OnInitializedAsync() => await LoadAsync();
 
-    protected override async Task OnInitializedAsync()
+    private async Task LoadAsync()
     {
+        _isLoading = true;
+        _loadError = null;
         try
         {
-            _prefs = await PreferencesService.GetAsync();
+            _prefs = await PreferencesService.GetCurrentUserPreferencesAsync();
         }
         catch (Exception ex)
         {
@@ -197,104 +61,35 @@
         }
     }
 
-    private void StartEdit(string field, string currentValue)
+    // Applies a single-field change to a copy, persists it, and commits on success.
+    // Returns null on success or an error message to display inline.
+    private async Task<string?> SaveAsync(Action<UserPreferencesDto> apply)
     {
-        _editingField = field;
-        _editValueStr = currentValue;
-        _fieldError = null;
-    }
-
-    private void CancelEdit()
-    {
-        _editingField = null;
-        _editValueStr = string.Empty;
-        _fieldError = null;
-    }
-
-    private async Task HandleKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter") await SaveField();
-        else if (e.Key == "Escape") CancelEdit();
-    }
-
-    private async Task SaveField()
-    {
-        _fieldError = null;
-        _isSaving = true;
+        var candidate = Clone(_prefs);
+        apply(candidate);
 
         try
         {
-            var request = new UpdateUserPreferencesRequest
-            {
-                WeightKg = _prefs?.WeightKg,
-                CalorieGoal = _prefs?.CalorieGoal,
-                ProteinGoalG = _prefs?.ProteinGoalG,
-                CarbGoalG = _prefs?.CarbGoalG,
-                FatGoalG = _prefs?.FatGoalG
-            };
-
-            switch (_editingField)
-            {
-                case "weightKg":
-                    if (!decimal.TryParse(_editValueStr, System.Globalization.NumberStyles.Any,
-                            System.Globalization.CultureInfo.InvariantCulture, out var weight)
-                        || weight < 0 || weight > 999)
-                    {
-                        _fieldError = "Enter a value between 0 and 999.";
-                        return;
-                    }
-                    request.WeightKg = weight == 0 ? null : weight;
-                    break;
-
-                case "calorieGoal":
-                    if (!int.TryParse(_editValueStr, out var cal) || cal < 0)
-                    {
-                        _fieldError = "Enter a valid calorie goal (0 or more).";
-                        return;
-                    }
-                    request.CalorieGoal = cal == 0 ? null : cal;
-                    break;
-
-                case "proteinGoalG":
-                    if (!int.TryParse(_editValueStr, out var prot) || prot < 0)
-                    {
-                        _fieldError = "Enter a valid protein goal (0 or more).";
-                        return;
-                    }
-                    request.ProteinGoalG = prot == 0 ? null : prot;
-                    break;
-
-                case "carbGoalG":
-                    if (!int.TryParse(_editValueStr, out var carb) || carb < 0)
-                    {
-                        _fieldError = "Enter a valid carb goal (0 or more).";
-                        return;
-                    }
-                    request.CarbGoalG = carb == 0 ? null : carb;
-                    break;
-
-                case "fatGoalG":
-                    if (!int.TryParse(_editValueStr, out var fat) || fat < 0)
-                    {
-                        _fieldError = "Enter a valid fat goal (0 or more).";
-                        return;
-                    }
-                    request.FatGoalG = fat == 0 ? null : fat;
-                    break;
-            }
-
-            await PreferencesService.UpdateAsync(request);
-            _prefs = await PreferencesService.GetAsync();
-            _editingField = null;
-            _editValueStr = string.Empty;
+            await PreferencesService.UpdateCurrentUserPreferencesAsync(candidate);
+            _prefs = candidate;
+            return null;
         }
         catch (Exception ex)
         {
-            _fieldError = $"Failed to save: {ex.Message}";
-        }
-        finally
-        {
-            _isSaving = false;
+            return $"Failed to save: {ex.Message}";
         }
     }
+
+    // A zero entry clears the value (treated as "not set").
+    private static decimal? AsValue(decimal v) => v == 0 ? null : v;
+    private static int? AsGoal(decimal v) => v == 0 ? null : (int)v;
+
+    private static UserPreferencesDto Clone(UserPreferencesDto p) => new()
+    {
+        WeightKg = p.WeightKg,
+        CalorieGoal = p.CalorieGoal,
+        ProteinGoalG = p.ProteinGoalG,
+        CarbGoalG = p.CarbGoalG,
+        FatGoalG = p.FatGoalG
+    };
 }

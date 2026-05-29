@@ -19,23 +19,20 @@ public class UserPreferencesService
         _logger = logger;
     }
 
-    public async Task<UserPreferencesResponse> GetAsync(CancellationToken ct)
+    public async Task<UserPreferencesResponse> GetPreferences(CancellationToken ct)
     {
-        _logger.LogInformation("Handling {Method}", nameof(GetAsync));
-
         var prefs = await _db.UserPreferences
             .FirstOrDefaultAsync(p => p.UserId == _currentUser.UserId, ct);
 
-        _logger.LogInformation("Handled {Method}", nameof(GetAsync));
         return prefs is null
             ? new UserPreferencesResponse(null, null, null, null, null)
-            : new UserPreferencesResponse(prefs.WeightKg, prefs.CalorieGoal, prefs.ProteinGoalG, prefs.CarbGoalG, prefs.FatGoalG);
+            : new UserPreferencesResponse(
+                prefs.WeightKg, prefs.CalorieGoal, prefs.ProteinGoalG, prefs.CarbGoalG, prefs.FatGoalG);
     }
 
-    public async Task UpdateAsync(UpdateUserPreferencesCommand cmd, CancellationToken ct)
+    public async Task UpdatePreferences(UpdateUserPreferencesCommand cmd, CancellationToken ct)
     {
         _validator.ValidateAndThrow(cmd);
-        _logger.LogInformation("Handling {Method}", nameof(UpdateAsync));
 
         var prefs = await _db.UserPreferences
             .FirstOrDefaultAsync(p => p.UserId == _currentUser.UserId, ct);
@@ -53,6 +50,5 @@ public class UserPreferencesService
         prefs.FatGoalG = cmd.FatGoalG;
 
         await _db.SaveChangesAsync(ct);
-        _logger.LogInformation("Handled {Method}", nameof(UpdateAsync));
     }
 }

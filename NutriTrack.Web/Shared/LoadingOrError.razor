@@ -1,0 +1,36 @@
+@* Renders a loading spinner, an error alert (with optional Retry), or the child content. *@
+
+@if (IsLoading)
+{
+    <div class="loading-container">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        @if (!string.IsNullOrEmpty(LoadingText))
+        {
+            <p>@LoadingText</p>
+        }
+    </div>
+}
+else if (!string.IsNullOrEmpty(ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">
+        @ErrorMessage
+        @if (OnRetry.HasDelegate)
+        {
+            <button class="btn btn-sm btn-secondary ms-3" @onclick="OnRetry">Retry</button>
+        }
+    </div>
+}
+else
+{
+    @ChildContent
+}
+
+@code {
+    [Parameter] public bool IsLoading { get; set; }
+    [Parameter] public string? ErrorMessage { get; set; }
+    [Parameter] public string LoadingText { get; set; } = "Loading...";
+    [Parameter] public EventCallback OnRetry { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

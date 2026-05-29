@@ -8,24 +8,10 @@
 
 <div class="meals-container">
 
-    @if (_isLoading)
-    {
-        <div class="text-center py-5">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Loading...</span>
-            </div>
-            <p class="mt-2 text-muted">Loading meals...</p>
-        </div>
-    }
-    else if (_loadError != null)
-    {
-        <div class="alert alert-danger">
-            <strong>Could not load meal data.</strong> @_loadError
-            <button class="btn btn-sm btn-outline-danger ms-3" @onclick="LoadDataAsync">Retry</button>
-        </div>
-    }
-    else
-    {
+    <LoadingOrError IsLoading="_isLoading"
+                    ErrorMessage="@(string.IsNullOrEmpty(_loadError) ? null : $"Could not load meal data. {_loadError}")"
+                    OnRetry="LoadDataAsync"
+                    LoadingText="Loading meals...">
         <!-- Header -->
         <div class="page-header">
             <h1>🍽️ Dashboard</h1>
@@ -151,7 +137,7 @@
                 }
             }
         </section>
-    }
+    </LoadingOrError>
 
 </div>
 

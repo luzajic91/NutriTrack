@@ -2,6 +2,8 @@ namespace NutriTrack.Shared.Features.Identity;
 
 public class AuthService
 {
+    private const int RefreshTokenLifetimeDays = 7;
+
     private readonly NutriTrackDbContext _db;
     private readonly JwtTokenService _jwt;
     private readonly ILogger<AuthService> _logger;
@@ -31,7 +33,6 @@ public class AuthService
     public async Task<int> Register(RegisterCommand cmd, CancellationToken ct)
     {
         _registerValidator.ValidateAndThrow(cmd);
-        _logger.LogInformation("Handling {Method}", nameof(Register));
 
         var emailTaken = await _db.Users.AnyAsync(u => u.Email == cmd.Email, ct);
         if (emailTaken)
@@ -51,14 +52,12 @@ public class AuthService
         _db.Add(user);
         await _db.SaveChangesAsync(ct);
 
-        _logger.LogInformation("Handled {Method}", nameof(Register));
         return user.UserId;
     }
 
     public async Task<LoginResult> Login(LoginCommand cmd, CancellationToken ct)
     {
         _loginValidator.ValidateAndThrow(cmd);
-        _logger.LogInformation("Handling {Method}", nameof(Login));
 
         var user = await _db.Users
             .Include(u => u.Role)
@@ -76,19 +75,17 @@ public class AuthService
             UserId = user.UserId,
             Token = refreshToken,
             CreatedAt = DateTime.UtcNow,
-            ExpiresAt = DateTime.UtcNow.AddDays(7)
+            ExpiresAt = DateTime.UtcNow.AddDays(RefreshTokenLifetimeDays)
         });
 
         await _db.SaveChangesAsync(ct);
 
-        _logger.LogInformation("Handled {Method}", nameof(Login));
         return new LoginResult(accessToken, refreshToken);
     }
 
     public async Task<LoginResult> RefreshToken(RefreshTokenCommand cmd, CancellationToken ct)
     {
         _refreshTokenValidator.ValidateAndThrow(cmd);
-        _logger.LogInformation("Handling {Method}", nameof(RefreshToken));
 
         var existing = await _db.RefreshTokens
             .Include(r => r.User)
@@ -111,19 +108,17 @@ public class AuthService
             UserId = existing.UserId,
             Token = newRefreshToken,
             CreatedAt = DateTime.UtcNow,
-            ExpiresAt = DateTime.UtcNow.AddDays(7)
+            ExpiresAt = DateTime.UtcNow.AddDays(RefreshTokenLifetimeDays)
         });
 
         await _db.SaveChangesAsync(ct);
 
-        _logger.LogInformation("Handled {Method}", nameof(RefreshToken));
         return new LoginResult(newAccessToken, newRefreshToken);
     }
 
     public async Task RevokeToken(RevokeTokenCommand cmd, CancellationToken ct)
     {
         _revokeTokenValidator.ValidateAndThrow(cmd);
-        _logger.LogInformation("Handling {Method}", nameof(RevokeToken));
 
         var token = await _db.RefreshTokens
             .FirstOrDefaultAsync(r => r.Token == cmd.RefreshToken, ct)
@@ -134,7 +129,5 @@ public class AuthService
 
         token.RevokedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
-
-        _logger.LogInformation("Handled {Method}", nameof(RevokeToken));
     }
 }

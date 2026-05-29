@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "NutriTrack Web",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "NutriTrack.Web/NutriTrack.Web.csproj"],
+      "port": 5107
+    }
+  ]
+}

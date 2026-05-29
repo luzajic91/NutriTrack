@@ -1,42 +1,20 @@
-using Microsoft.AspNetCore.Http;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
-using System.Security.Claims;
 
 namespace NutriTrack.Tests.Features;
 
 public class LogMealHandlerTests
 {
-    private static NutriTrackDbContext CreateDb()
-    {
-        var options = new DbContextOptionsBuilder<NutriTrackDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options;
-        return new NutriTrackDbContext(options);
-    }
-
-    private static CurrentUserService CreateUser(int userId = 1)
-    {
-        var claims = new[] { new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
-                             new Claim(ClaimTypes.Role, "User") };
-        var identity = new ClaimsIdentity(claims);
-        var principal = new ClaimsPrincipal(identity);
-        var accessor = new Mock<IHttpContextAccessor>();
-        accessor.Setup(x => x.HttpContext!.User).Returns(principal);
-        return new CurrentUserService(accessor.Object);
-    }
-
     private static MealLoggingService CreateService(NutriTrackDbContext db, CurrentUserService user) =>
         new(db, user, null!, new LogMealValidator(), NullLogger<MealLoggingService>.Instance);
 
     [Fact]
     public async Task Handle_DirectFoodEntry_PersistsMealWithCorrectGrams()
     {
-        await using var db = CreateDb();
+        await using var db = TestHelpers.CreateDb();
         db.Foods.Add(new Food { FoodId = 1, Name = "Chicken" });
         await db.SaveChangesAsync();
 
-        var service = CreateService(db, CreateUser());
+        var service = CreateService(db, TestHelpers.CreateUser());
         await service.LogMeal(
             new LogMealCommand([new MealFoodEntry(1, 150)], [], null),
             CancellationToken.None);
@@ -48,7 +26,7 @@ public class LogMealHandlerTests
     [Fact]
     public async Task Handle_RecipeEntry_ExpandsIntoFoods()
     {
-        await using var db = CreateDb();
+        await using var db = TestHelpers.CreateDb();
         db.Foods.Add(new Food { FoodId = 1, Name = "Rice" });
         db.Foods.Add(new Food { FoodId = 2, Name = "Chicken" });
         db.Recipes.Add(new Recipe
@@ -66,7 +44,7 @@ public class LogMealHandlerTests
         });
         await db.SaveChangesAsync();
 
-        var service = CreateService(db, CreateUser());
+        var service = CreateService(db, TestHelpers.CreateUser());
         await service.LogMeal(
             new LogMealCommand([], [new MealRecipeEntry(1, 250)], null),
             CancellationToken.None);
@@ -80,9 +58,9 @@ public class LogMealHandlerTests
     [Fact]
     public async Task Handle_NonExistentFood_ThrowsNotFoundException()
     {
-        await using var db = CreateDb();
+        await using var db = TestHelpers.CreateDb();
 
-        var service = CreateService(db, CreateUser());
+        var service = CreateService(db, TestHelpers.CreateUser());
         var act = async () => await service.LogMeal(
             new LogMealCommand([new MealFoodEntry(99, 100)], [], null),
             CancellationToken.None);
@@ -94,7 +72,7 @@ public class LogMealHandlerTests
     [Fact]
     public async Task Handle_PrivateRecipeFromOtherUser_ThrowsForbiddenException()
     {
-        await using var db = CreateDb();
+        await using var db = TestHelpers.CreateDb();
         db.Recipes.Add(new Recipe
         {
             RecipeId = 1,
@@ -106,7 +84,7 @@ public class LogMealHandlerTests
         });
         await db.SaveChangesAsync();
 
-        var service = CreateService(db, CreateUser(userId: 1));
+        var service = CreateService(db, TestHelpers.CreateUser(userId: 1));
         var act = async () => await service.LogMeal(
             new LogMealCommand([], [new MealRecipeEntry(1, 100)], null),
             CancellationToken.None);
