@@ -17,6 +17,7 @@ public class NutriTrackDbContext : DbContext
     public DbSet<RecipeItem> RecipeItems => Set<RecipeItem>();
     public DbSet<MealEntry> MealEntries => Set<MealEntry>();
     public DbSet<MealEntryItem> MealEntryItems => Set<MealEntryItem>();
+    public DbSet<Domain.UserPreferences.UserPreferences> UserPreferences => Set<Domain.UserPreferences.UserPreferences>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {

@@ -1,0 +1,58 @@
+namespace NutriTrack.Shared.Features.UserPreferences;
+
+public class UserPreferencesService
+{
+    private readonly NutriTrackDbContext _db;
+    private readonly CurrentUserService _currentUser;
+    private readonly UpdateUserPreferencesValidator _validator;
+    private readonly ILogger<UserPreferencesService> _logger;
+
+    public UserPreferencesService(
+        NutriTrackDbContext db,
+        CurrentUserService currentUser,
+        UpdateUserPreferencesValidator validator,
+        ILogger<UserPreferencesService> logger)
+    {
+        _db = db;
+        _currentUser = currentUser;
+        _validator = validator;
+        _logger = logger;
+    }
+
+    public async Task<UserPreferencesResponse> GetAsync(CancellationToken ct)
+    {
+        _logger.LogInformation("Handling {Method}", nameof(GetAsync));
+
+        var prefs = await _db.UserPreferences
+            .FirstOrDefaultAsync(p => p.UserId == _currentUser.UserId, ct);
+
+        _logger.LogInformation("Handled {Method}", nameof(GetAsync));
+        return prefs is null
+            ? new UserPreferencesResponse(null, null, null, null, null)
+            : new UserPreferencesResponse(prefs.WeightKg, prefs.CalorieGoal, prefs.ProteinGoalG, prefs.CarbGoalG, prefs.FatGoalG);
+    }
+
+    public async Task UpdateAsync(UpdateUserPreferencesCommand cmd, CancellationToken ct)
+    {
+        _validator.ValidateAndThrow(cmd);
+        _logger.LogInformation("Handling {Method}", nameof(UpdateAsync));
+
+        var prefs = await _db.UserPreferences
+            .FirstOrDefaultAsync(p => p.UserId == _currentUser.UserId, ct);
+
+        if (prefs is null)
+        {
+            prefs = new Domain.UserPreferences.UserPreferences { UserId = _currentUser.UserId };
+            _db.UserPreferences.Add(prefs);
+        }
+
+        prefs.WeightKg = cmd.WeightKg;
+        prefs.CalorieGoal = cmd.CalorieGoal;
+        prefs.ProteinGoalG = cmd.ProteinGoalG;
+        prefs.CarbGoalG = cmd.CarbGoalG;
+        prefs.FatGoalG = cmd.FatGoalG;
+
+        await _db.SaveChangesAsync(ct);
+        _logger.LogInformation("Handled {Method}", nameof(UpdateAsync));
+    }
+}

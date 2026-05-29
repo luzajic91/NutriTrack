@@ -5,4 +5,5 @@ global using NutriTrack.Shared.Features.FoodCatalog;
 global using NutriTrack.Shared.Features.Identity;
 global using NutriTrack.Shared.Features.MealLogging;
 global using NutriTrack.Shared.Features.Recipes;
+global using NutriTrack.Shared.Features.UserPreferences;
 global using Scalar.AspNetCore;

@@ -28,5 +28,6 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IRecipeService, RecipeService>();
 builder.Services.AddScoped<IFoodService, FoodService>();
 builder.Services.AddScoped<IMealService, MealService>();
+builder.Services.AddScoped<IUserPreferencesService, UserPreferencesService>();
 
 await builder.Build().RunAsync();

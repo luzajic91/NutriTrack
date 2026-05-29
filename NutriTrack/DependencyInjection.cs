@@ -51,12 +51,14 @@ public static class DependencyInjection
         services.AddScoped<RevokeTokenValidator>();
         services.AddScoped<LogMealValidator>();
         services.AddScoped<CreateRecipeValidator>();
+        services.AddScoped<UpdateUserPreferencesValidator>();
 
         // feature services
         services.AddScoped<AuthService>();
         services.AddScoped<FoodCatalogService>();
         services.AddScoped<MealLoggingService>();
         services.AddScoped<RecipeService>();
+        services.AddScoped<UserPreferencesService>();
 
         return services;
     }
