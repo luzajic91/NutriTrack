@@ -1,43 +1,28 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">🥗 NutriTrack</a>
-    </div>
+﻿<div class="top-row">
+    <a class="navbar-brand" href="">🥗 NutriTrack</a>
 </div>
 
 <input type="checkbox" title="Navigation menu" class="navbar-toggler" />
 
 <div class="nav-scrollable">
     <nav class="flex-column">
-        <div class="nav-item px-3">
+        <div class="nav-item">
             <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Dashboard
+                <span class="nav-icon" aria-hidden="true">🏠</span> Dashboard
             </NavLink>
         </div>
 
-        <div class="nav-item px-3">
+        <div class="nav-item">
             <NavLink class="nav-link" href="recipes">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Recipes
+                <span class="nav-icon" aria-hidden="true">📋</span> Recipes
             </NavLink>
         </div>
 
-        <div class="nav-item px-3">
+        <div class="nav-item">
             <NavLink class="nav-link" href="meals/log">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Log Meal
+                <span class="nav-icon" aria-hidden="true">➕</span> Log Meal
             </NavLink>
         </div>
 
     </nav>
 </div>
-
-<style>
-    .bi {
-        display: inline-block;
-        width: 1rem;
-        height: 1rem;
-        margin-right: 0.75rem;
-    }
-
-    .bi::before {
-        content: "▪";
-    }
-</style>
