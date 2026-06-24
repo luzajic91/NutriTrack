@@ -25,6 +25,7 @@ builder.Services.AddScoped<AuthenticationStateProvider, AuthStateProvider>();
 
 // Add Application Services
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IApiClient, ApiClient>();
 builder.Services.AddScoped<IRecipeService, RecipeService>();
 builder.Services.AddScoped<IFoodService, FoodService>();
 builder.Services.AddScoped<IMealService, MealService>();

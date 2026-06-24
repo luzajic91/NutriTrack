@@ -4,6 +4,6 @@ namespace NutriTrack.Shared.Services;
 
 public interface IUserPreferencesService
 {
-    Task<UserPreferencesDto?> GetAsync();
-    Task UpdateAsync(UpdateUserPreferencesRequest request);
+    Task<UserPreferencesDto> GetCurrentUserPreferencesAsync();
+    Task UpdateCurrentUserPreferencesAsync(UserPreferencesDto request);
 }

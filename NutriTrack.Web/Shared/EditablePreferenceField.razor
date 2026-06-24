@@ -1,0 +1,97 @@
+@using System.Globalization
+
+@* One inline-editable preference row: shows a value with a unit, switches to a
+   numeric input on edit, validates range, and delegates persistence to OnSave. *@
+
+<div class="pref-row">
+    <span class="pref-label">@Label</span>
+
+    @if (_editing)
+    {
+        <div class="pref-edit-group">
+            <input class="pref-input" type="number" step="@Step" min="@Min.ToString(CultureInfo.InvariantCulture)"
+                   @bind="_editValue" @bind:event="oninput" @onkeydown="OnKeyDown" />
+            <span class="pref-unit">@Unit</span>
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <span class="pref-error">@_error</span>
+            }
+        </div>
+        <div class="pref-actions">
+            <button class="pref-btn-save" @onclick="SaveAsync" disabled="@_saving" title="Save">✓</button>
+            <button class="pref-btn-cancel" @onclick="Cancel" title="Cancel">✗</button>
+        </div>
+    }
+    else
+    {
+        <span class="pref-value">@FormatValue(Value ?? 0) @Unit</span>
+        <button class="pref-btn-edit" @onclick="StartEdit" title="Edit">✏️</button>
+    }
+</div>
+
+@code {
+    [Parameter] public string Label { get; set; } = string.Empty;
+    [Parameter] public string Unit { get; set; } = string.Empty;
+    [Parameter] public decimal? Value { get; set; }
+
+    /// <summary>Decimal places shown and accepted (0 for integers, 1 for weight).</summary>
+    [Parameter] public int Decimals { get; set; }
+    [Parameter] public decimal Min { get; set; }
+    [Parameter] public decimal? Max { get; set; }
+    [Parameter] public string Step { get; set; } = "1";
+
+    /// <summary>Persists the new value; returns an error message, or null on success.</summary>
+    [Parameter] public Func<decimal, Task<string?>>? OnSave { get; set; }
+
+    private bool _editing;
+    private bool _saving;
+    private string _editValue = string.Empty;
+    private string? _error;
+
+    private string FormatValue(decimal value) => value.ToString($"F{Decimals}", CultureInfo.InvariantCulture);
+
+    private void StartEdit()
+    {
+        _editValue = FormatValue(Value ?? 0);
+        _error = null;
+        _editing = true;
+    }
+
+    private void Cancel()
+    {
+        _editing = false;
+        _error = null;
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await SaveAsync();
+        else if (e.Key == "Escape") Cancel();
+    }
+
+    private async Task SaveAsync()
+    {
+        if (!decimal.TryParse(_editValue, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed)
+            || parsed < Min
+            || (Max.HasValue && parsed > Max.Value))
+        {
+            _error = Max.HasValue
+                ? $"Enter a value between {Min} and {Max}."
+                : $"Enter a value of {Min} or more.";
+            return;
+        }
+
+        if (OnSave is null)
+        {
+            _editing = false;
+            return;
+        }
+
+        _saving = true;
+        _error = await OnSave(parsed);
+        _saving = false;
+
+        if (_error is null)
+            _editing = false;
+    }
+}

@@ -16,8 +16,6 @@ public class FoodCatalogService
 
     public async Task<FoodDto> GetFood(int foodId, CancellationToken ct)
     {
-        _logger.LogInformation("Handling {Method}", nameof(GetFood));
-
         var food = await _db.Foods
             .Include(f => f.Brand)
             .Include(f => f.FoodNutrients)
@@ -54,8 +52,6 @@ public class FoodCatalogService
     public async Task<PagedResultDto<FoodSummaryDto>> SearchFoods(
         string? search, int? brandId, int page, int pageSize, CancellationToken ct)
     {
-        _logger.LogInformation("Handling {Method}", nameof(SearchFoods));
-
         var query = _db.Foods
             .Include(f => f.Brand)
             .AsQueryable();

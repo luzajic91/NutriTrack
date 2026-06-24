@@ -1,18 +1,9 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace NutriTrack.Tests.Features;
 
 public class RegisterHandlerTests
 {
-    private static NutriTrackDbContext CreateDb()
-    {
-        var options = new DbContextOptionsBuilder<NutriTrackDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options;
-        return new NutriTrackDbContext(options);
-    }
-
     private static AuthService CreateService(NutriTrackDbContext db) =>
         new(db, null!, NullLogger<AuthService>.Instance,
             new RegisterValidator(), new LoginValidator(),
@@ -21,7 +12,7 @@ public class RegisterHandlerTests
     [Fact]
     public async Task Handle_ValidCommand_ReturnsNewUserId()
     {
-        await using var db = CreateDb();
+        await using var db = TestHelpers.CreateDb();
         db.Roles.Add(new Role { RoleId = 1, Name = "User" });
         await db.SaveChangesAsync();
 
@@ -38,7 +29,7 @@ public class RegisterHandlerTests
     [Fact]
     public async Task Handle_DuplicateEmail_ThrowsValidationException()
     {
-        await using var db = CreateDb();
+        await using var db = TestHelpers.CreateDb();
         db.Users.Add(new User
         {
             UserId = 1,
@@ -60,7 +51,7 @@ public class RegisterHandlerTests
     [Fact]
     public async Task Handle_MissingUserRole_ThrowsNotFoundException()
     {
-        await using var db = CreateDb();
+        await using var db = TestHelpers.CreateDb();
 
         var service = CreateService(db);
         var act = async () => await service.Register(

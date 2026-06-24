@@ -15,14 +15,14 @@ public class UserPreferencesController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> Get(CancellationToken ct)
     {
-        var result = await _userPreferences.GetAsync(ct);
+        var result = await _userPreferences.GetPreferences(ct);
         return Ok(result);
     }
 
     [HttpPut]
     public async Task<IActionResult> Update(UpdateUserPreferencesRequest cmd, CancellationToken ct)
     {
-        await _userPreferences.UpdateAsync(cmd, ct);
+        await _userPreferences.UpdatePreferences(cmd, ct);
         return NoContent();
     }
 }

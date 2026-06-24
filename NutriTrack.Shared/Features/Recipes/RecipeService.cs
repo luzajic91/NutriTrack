@@ -25,18 +25,8 @@ public class RecipeService
     public async Task<int> CreateRecipe(CreateRecipeRequest cmd, CancellationToken ct)
     {
         _createRecipeValidator.ValidateAndThrow(cmd);
-        _logger.LogInformation("Handling {Method}", nameof(CreateRecipe));
 
-        var foodIds = cmd.Items.Select(i => i.FoodId).ToList();
-
-        var existingFoodIds = await _db.Foods
-            .Where(f => foodIds.Contains(f.FoodId))
-            .Select(f => f.FoodId)
-            .ToListAsync(ct);
-
-        var missingFoodId = foodIds.FirstOrDefault(id => !existingFoodIds.Contains(id));
-        if (missingFoodId != default)
-            throw new NotFoundException($"Food {missingFoodId} not found.");
+        await _db.EnsureFoodsExistAsync(cmd.Items.Select(i => i.FoodId), ct);
 
         var recipe = new Recipe
         {
@@ -56,26 +46,19 @@ public class RecipeService
         _db.Add(recipe);
         await _db.SaveChangesAsync(ct);
 
-        _logger.LogInformation("Handled {Method}", nameof(CreateRecipe));
         return recipe.RecipeId;
     }
 
     public async Task<RecipeDto> GetRecipe(int recipeId, CancellationToken ct)
     {
-        _logger.LogInformation("Handling {Method}", nameof(GetRecipe));
-
         var recipe = await _db.Recipes
             .Include(r => r.RecipeItems)
             .FirstOrDefaultAsync(r => r.RecipeId == recipeId, ct)
             ?? throw new NotFoundException($"Recipe {recipeId} not found.");
 
-        if (recipe.UserId != _currentUser.UserId && !recipe.IsPublic)
-            throw new ForbiddenException("You do not have access to this recipe.");
+        EnsureCanView(recipe);
 
-        var foodIds = recipe.RecipeItems.Select(i => i.FoodId).ToList();
-        var foods = await _db.Foods
-            .Where(f => foodIds.Contains(f.FoodId))
-            .ToDictionaryAsync(f => f.FoodId, f => f.Name, ct);
+        var foodNames = await GetFoodNamesAsync(recipe.RecipeItems.Select(i => i.FoodId), ct);
 
         _logger.LogInformation("Handled {Method}", nameof(GetRecipe));
         return new RecipeDto
@@ -138,38 +121,29 @@ public class RecipeService
             })
             .ToListAsync(ct);
 
-        _logger.LogInformation("Handled {Method}", nameof(ListAvailableRecipes));
-        return result;
-    }
+    public async Task<List<RecipeSummaryResponse>> ListAvailableRecipes(CancellationToken ct) =>
+        await QuerySummaries(r => r.UserId == _currentUser.UserId || r.IsPublic, ct);
 
     public async Task DeleteRecipe(int recipeId, CancellationToken ct)
     {
-        _logger.LogInformation("Handling {Method}", nameof(DeleteRecipe));
-
         var recipe = await _db.Recipes
             .FirstOrDefaultAsync(r => r.RecipeId == recipeId, ct)
             ?? throw new NotFoundException($"Recipe {recipeId} not found.");
 
-        if (recipe.UserId != _currentUser.UserId)
-            throw new ForbiddenException("You do not have permission to delete this recipe.");
+        EnsureCanDelete(recipe);
 
         _db.Remove(recipe);
         await _db.SaveChangesAsync(ct);
-
-        _logger.LogInformation("Handled {Method}", nameof(DeleteRecipe));
     }
 
     public async Task<RecipeNutritionDto> GetRecipeNutrition(int recipeId, CancellationToken ct)
     {
-        _logger.LogInformation("Handling {Method}", nameof(GetRecipeNutrition));
-
         var recipe = await _db.Recipes
             .Include(r => r.RecipeItems)
             .FirstOrDefaultAsync(r => r.RecipeId == recipeId, ct)
             ?? throw new NotFoundException($"Recipe {recipeId} not found.");
 
-        if (recipe.UserId != _currentUser.UserId && !recipe.IsPublic)
-            throw new ForbiddenException("You do not have access to this recipe.");
+        EnsureCanView(recipe);
 
         var foodIds = recipe.RecipeItems.Select(i => i.FoodId).ToList();
 
@@ -178,7 +152,7 @@ public class RecipeService
             .Where(fn => foodIds.Contains(fn.FoodId))
             .ToListAsync(ct);
 
-        var gramsLookup = recipe.RecipeItems.ToDictionary(i => i.FoodId, i => i.Grams);
+        var gramsByFood = recipe.RecipeItems.ToDictionary(i => i.FoodId, i => i.Grams);
 
         var contributions = nutrients.Select(fn => new NutrientContribution(
             fn.Nutrient.Name,
@@ -211,5 +185,41 @@ public class RecipeService
             Nutrients = totals,
             NutrientsPerServing = perServing
         };
+    }
+
+    private void EnsureCanView(Recipe recipe)
+    {
+        if (recipe.UserId != _currentUser.UserId && !recipe.IsPublic)
+            throw new ForbiddenException("You do not have access to this recipe.");
+    }
+
+    private void EnsureCanDelete(Recipe recipe)
+    {
+        if (recipe.UserId != _currentUser.UserId)
+            throw new ForbiddenException("You do not have permission to delete this recipe.");
+    }
+
+    private async Task<List<RecipeSummaryResponse>> QuerySummaries(
+        System.Linq.Expressions.Expression<Func<Recipe, bool>> predicate, CancellationToken ct) =>
+        await _db.Recipes
+            .Where(predicate)
+            .OrderBy(r => r.Name)
+            .Select(r => new RecipeSummaryResponse(
+                r.RecipeId,
+                r.Name,
+                r.Description,
+                r.ServingsCount,
+                r.TotalGrams,
+                r.IsPublic,
+                r.RecipeItems.Count))
+            .ToListAsync(ct);
+
+    private async Task<Dictionary<int, string>> GetFoodNamesAsync(
+        IEnumerable<int> foodIds, CancellationToken ct)
+    {
+        var ids = foodIds.Distinct().ToList();
+        return await _db.Foods
+            .Where(f => ids.Contains(f.FoodId))
+            .ToDictionaryAsync(f => f.FoodId, f => f.Name, ct);
     }
 }

@@ -23,12 +23,9 @@ public class UserPreferencesService
 
     public async Task<UserPreferencesDto> GetAsync(CancellationToken ct)
     {
-        _logger.LogInformation("Handling {Method}", nameof(GetAsync));
-
         var prefs = await _db.UserPreferences
             .FirstOrDefaultAsync(p => p.UserId == _currentUser.UserId, ct);
 
-        _logger.LogInformation("Handled {Method}", nameof(GetAsync));
         return prefs is null
             ? new UserPreferencesDto()
             : new UserPreferencesDto
@@ -44,7 +41,6 @@ public class UserPreferencesService
     public async Task UpdateAsync(UpdateUserPreferencesRequest cmd, CancellationToken ct)
     {
         _validator.ValidateAndThrow(cmd);
-        _logger.LogInformation("Handling {Method}", nameof(UpdateAsync));
 
         var prefs = await _db.UserPreferences
             .FirstOrDefaultAsync(p => p.UserId == _currentUser.UserId, ct);
@@ -62,6 +58,5 @@ public class UserPreferencesService
         prefs.FatGoalG = cmd.FatGoalG;
 
         await _db.SaveChangesAsync(ct);
-        _logger.LogInformation("Handled {Method}", nameof(UpdateAsync));
     }
 }

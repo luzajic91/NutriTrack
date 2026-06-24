@@ -27,80 +27,77 @@ public class MealLoggingService
     public async Task<int> LogMeal(LogMealRequest cmd, CancellationToken ct)
     {
         _logMealValidator.ValidateAndThrow(cmd);
-        _logger.LogInformation("Handling {Method}", nameof(LogMeal));
-
-        var consumedAt = cmd.ConsumedAt ?? DateTime.UtcNow;
 
         var entry = new MealEntry
         {
             UserId = _currentUser.UserId,
-            ConsumedAt = consumedAt,
+            ConsumedAt = cmd.ConsumedAt ?? DateTime.UtcNow,
             Items = []
         };
 
-        foreach (var f in cmd.Foods)
-        {
-            var exists = await _db.Foods.AnyAsync(x => x.FoodId == f.FoodId, ct);
-            if (!exists)
-                throw new NotFoundException($"Food {f.FoodId} not found.");
+        await AddDirectFoodsAsync(entry, cmd.Foods, ct);
+        await AddRecipeFoodsAsync(entry, cmd.Recipes, ct);
 
-            entry.Items.Add(new MealEntryItem { FoodId = f.FoodId, Grams = f.Grams });
-        }
+        _db.Add(entry);
+        await _db.SaveChangesAsync(ct);
 
-        foreach (var r in cmd.Recipes)
+        return entry.MealEntryId;
+    }
+
+    private async Task AddDirectFoodsAsync(
+        MealEntry entry, IReadOnlyList<MealFoodEntry> foods, CancellationToken ct)
+    {
+        if (foods.Count == 0)
+            return;
+
+        await _db.EnsureFoodsExistAsync(foods.Select(f => f.FoodId), ct);
+
+        foreach (var food in foods)
+            entry.Items.Add(new MealEntryItem { FoodId = food.FoodId, Grams = food.Grams });
+    }
+
+    private async Task AddRecipeFoodsAsync(
+        MealEntry entry, IReadOnlyList<MealRecipeEntry> recipes, CancellationToken ct)
+    {
+        foreach (var recipeEntry in recipes)
         {
             var recipe = await _db.Recipes
                 .Include(x => x.RecipeItems)
-                .FirstOrDefaultAsync(x => x.RecipeId == r.RecipeId, ct)
-                ?? throw new NotFoundException($"Recipe {r.RecipeId} not found.");
+                .FirstOrDefaultAsync(x => x.RecipeId == recipeEntry.RecipeId, ct)
+                ?? throw new NotFoundException($"Recipe {recipeEntry.RecipeId} not found.");
 
             if (recipe.UserId != _currentUser.UserId && !recipe.IsPublic)
                 throw new ForbiddenException("You do not have access to this recipe.");
 
-            var scale = r.Grams / recipe.TotalGrams;
+            var portionScale = recipeEntry.Grams / recipe.TotalGrams;
 
             foreach (var item in recipe.RecipeItems)
                 entry.Items.Add(new MealEntryItem
                 {
                     FoodId = item.FoodId,
-                    Grams = Math.Round(item.Grams * scale, 2)
+                    Grams = Math.Round(item.Grams * portionScale, 2)
                 });
         }
-
-        _db.Add(entry);
-        await _db.SaveChangesAsync(ct);
-
-        _logger.LogInformation("Handled {Method}", nameof(LogMeal));
-        return entry.MealEntryId;
     }
 
     public async Task<List<MealEntryDto>> GetMealHistory(
         DateOnly? from, DateOnly? to, CancellationToken ct)
     {
-        _logger.LogInformation("Handling {Method}", nameof(GetMealHistory));
-
-        var query = _db.MealEntries
-            .Where(m => m.UserId == _currentUser.UserId)
-            .AsQueryable();
+        var query = _db.MealEntries.Where(m => m.UserId == _currentUser.UserId);
 
         if (from.HasValue)
-            query = query.Where(m =>
-                m.ConsumedAt >= from.Value.ToDateTime(TimeOnly.MinValue));
+            query = query.Where(m => m.ConsumedAt >= from.Value.ToDateTime(TimeOnly.MinValue));
 
         if (to.HasValue)
-            query = query.Where(m =>
-                m.ConsumedAt <= to.Value.ToDateTime(TimeOnly.MaxValue));
+            query = query.Where(m => m.ConsumedAt <= to.Value.ToDateTime(TimeOnly.MaxValue));
 
         var entries = await query
             .OrderByDescending(m => m.ConsumedAt)
             .Include(m => m.Items)
             .ToListAsync(ct);
 
-        var foodIds = entries
-            .SelectMany(e => e.Items)
-            .Select(i => i.FoodId)
-            .Distinct()
-            .ToList();
+        var foodNames = await GetFoodNamesAsync(
+            entries.SelectMany(e => e.Items).Select(i => i.FoodId), ct);
 
         var foods = await _db.Foods
             .Where(f => foodIds.Contains(f.FoodId))
@@ -140,7 +137,6 @@ public class MealLoggingService
     public async Task<DailyNutritionSummaryDto> GetSummaryRange(
         DateOnly from, DateOnly to, CancellationToken ct)
     {
-        _logger.LogInformation("Handling {Method}", nameof(GetSummaryRange));
         var nutrients = from == to
             ? await _nutritionQuery.GetDailySummaryAsync(_currentUser.UserId, from)
             : await _nutritionQuery.GetSummaryRangeAsync(_currentUser.UserId, from, to);
@@ -148,4 +144,12 @@ public class MealLoggingService
         return new DailyNutritionSummaryDto { Date = from, Nutrients = nutrients };
     }
 
+    private async Task<Dictionary<int, string>> GetFoodNamesAsync(
+        IEnumerable<int> foodIds, CancellationToken ct)
+    {
+        var ids = foodIds.Distinct().ToList();
+        return await _db.Foods
+            .Where(f => ids.Contains(f.FoodId))
+            .ToDictionaryAsync(f => f.FoodId, f => f.Name, ct);
+    }
 }
