@@ -1,3 +1,5 @@
+using NutriTrack.Shared.Models.UserPreferences;
+
 namespace NutriTrack.Shared.Features.UserPreferences;
 
 public class UserPreferencesService
@@ -19,7 +21,7 @@ public class UserPreferencesService
         _logger = logger;
     }
 
-    public async Task<UserPreferencesResponse> GetAsync(CancellationToken ct)
+    public async Task<UserPreferencesDto> GetAsync(CancellationToken ct)
     {
         _logger.LogInformation("Handling {Method}", nameof(GetAsync));
 
@@ -28,11 +30,18 @@ public class UserPreferencesService
 
         _logger.LogInformation("Handled {Method}", nameof(GetAsync));
         return prefs is null
-            ? new UserPreferencesResponse(null, null, null, null, null)
-            : new UserPreferencesResponse(prefs.WeightKg, prefs.CalorieGoal, prefs.ProteinGoalG, prefs.CarbGoalG, prefs.FatGoalG);
+            ? new UserPreferencesDto()
+            : new UserPreferencesDto
+            {
+                WeightKg = prefs.WeightKg,
+                CalorieGoal = prefs.CalorieGoal,
+                ProteinGoalG = prefs.ProteinGoalG,
+                CarbGoalG = prefs.CarbGoalG,
+                FatGoalG = prefs.FatGoalG
+            };
     }
 
-    public async Task UpdateAsync(UpdateUserPreferencesCommand cmd, CancellationToken ct)
+    public async Task UpdateAsync(UpdateUserPreferencesRequest cmd, CancellationToken ct)
     {
         _validator.ValidateAndThrow(cmd);
         _logger.LogInformation("Handling {Method}", nameof(UpdateAsync));

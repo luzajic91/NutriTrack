@@ -27,7 +27,7 @@ public class RegisterHandlerTests
 
         var service = CreateService(db);
         var result = await service.Register(
-            new RegisterCommand("test@test.com", "password123"),
+            new RegisterRequest { Email = "test@test.com", Password = "password123" },
             CancellationToken.None);
 
         result.Should().Be(1);
@@ -50,7 +50,7 @@ public class RegisterHandlerTests
 
         var service = CreateService(db);
         var act = async () => await service.Register(
-            new RegisterCommand("test@test.com", "password123"),
+            new RegisterRequest { Email = "test@test.com", Password = "password123" },
             CancellationToken.None);
 
         await act.Should().ThrowAsync<FluentValidation.ValidationException>()
@@ -64,7 +64,7 @@ public class RegisterHandlerTests
 
         var service = CreateService(db);
         var act = async () => await service.Register(
-            new RegisterCommand("test@test.com", "password123"),
+            new RegisterRequest { Email = "test@test.com", Password = "password123" },
             CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>()

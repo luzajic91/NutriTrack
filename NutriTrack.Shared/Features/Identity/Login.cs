@@ -1,10 +1,8 @@
+using NutriTrack.Shared.Models.Auth;
+
 namespace NutriTrack.Shared.Features.Identity;
 
-public record LoginCommand(string Email, string Password);
-
-public record LoginResult(string AccessToken, string RefreshToken);
-
-public class LoginValidator : AbstractValidator<LoginCommand>
+public class LoginValidator : AbstractValidator<LoginRequest>
 {
     public LoginValidator()
     {

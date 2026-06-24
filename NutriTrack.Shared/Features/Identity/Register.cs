@@ -1,8 +1,8 @@
+using NutriTrack.Shared.Models.Auth;
+
 namespace NutriTrack.Shared.Features.Identity;
 
-public record RegisterCommand(string Email, string Password);
-
-public class RegisterValidator : AbstractValidator<RegisterCommand>
+public class RegisterValidator : AbstractValidator<RegisterRequest>
 {
     public RegisterValidator()
     {

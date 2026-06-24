@@ -1,15 +1,8 @@
+using NutriTrack.Shared.Models.Recipes;
+
 namespace NutriTrack.Shared.Features.Recipes;
 
-public record CreateRecipeCommand(
-    string Name,
-    string? Description,
-    int? ServingsCount,
-    bool IsPublic,
-    List<RecipeItemRequest> Items);
-
-public record RecipeItemRequest(int FoodId, decimal Grams);
-
-public class CreateRecipeValidator : AbstractValidator<CreateRecipeCommand>
+public class CreateRecipeValidator : AbstractValidator<CreateRecipeRequest>
 {
     public CreateRecipeValidator()
     {

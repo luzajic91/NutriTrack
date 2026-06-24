@@ -1,3 +1,5 @@
+using NutriTrack.Shared.Models.Auth;
+
 namespace NutriTrack.Shared.Features.Identity;
 
 public class AuthService
@@ -28,7 +30,7 @@ public class AuthService
         _revokeTokenValidator = revokeTokenValidator;
     }
 
-    public async Task<int> Register(RegisterCommand cmd, CancellationToken ct)
+    public async Task<int> Register(RegisterRequest cmd, CancellationToken ct)
     {
         _registerValidator.ValidateAndThrow(cmd);
         _logger.LogInformation("Handling {Method}", nameof(Register));
@@ -55,7 +57,7 @@ public class AuthService
         return user.UserId;
     }
 
-    public async Task<LoginResult> Login(LoginCommand cmd, CancellationToken ct)
+    public async Task<AuthTokensDto> Login(LoginRequest cmd, CancellationToken ct)
     {
         _loginValidator.ValidateAndThrow(cmd);
         _logger.LogInformation("Handling {Method}", nameof(Login));
@@ -82,10 +84,10 @@ public class AuthService
         await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("Handled {Method}", nameof(Login));
-        return new LoginResult(accessToken, refreshToken);
+        return new AuthTokensDto { AccessToken = accessToken, RefreshToken = refreshToken };
     }
 
-    public async Task<LoginResult> RefreshToken(RefreshTokenCommand cmd, CancellationToken ct)
+    public async Task<AuthTokensDto> RefreshToken(RefreshTokenRequest cmd, CancellationToken ct)
     {
         _refreshTokenValidator.ValidateAndThrow(cmd);
         _logger.LogInformation("Handling {Method}", nameof(RefreshToken));
@@ -117,10 +119,10 @@ public class AuthService
         await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("Handled {Method}", nameof(RefreshToken));
-        return new LoginResult(newAccessToken, newRefreshToken);
+        return new AuthTokensDto { AccessToken = newAccessToken, RefreshToken = newRefreshToken };
     }
 
-    public async Task RevokeToken(RevokeTokenCommand cmd, CancellationToken ct)
+    public async Task RevokeToken(RevokeTokenRequest cmd, CancellationToken ct)
     {
         _revokeTokenValidator.ValidateAndThrow(cmd);
         _logger.LogInformation("Handling {Method}", nameof(RevokeToken));

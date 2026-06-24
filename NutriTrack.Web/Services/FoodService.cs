@@ -1,4 +1,5 @@
-﻿using NutriTrack.Shared.Models.Foods;
+﻿using NutriTrack.Shared.Models.Common;
+using NutriTrack.Shared.Models.Foods;
 using NutriTrack.Shared.Services;
 using System.Net.Http.Json;
 
@@ -70,13 +71,4 @@ public class FoodService : IFoodService
         _http.DefaultRequestHeaders.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
     }
-}
-
-// Helper DTO for paged results
-public class PagedResultDto<T>
-{
-    public List<T> Items { get; set; } = new();
-    public int TotalCount { get; set; }
-    public int Page { get; set; }
-    public int PageSize { get; set; }
 }

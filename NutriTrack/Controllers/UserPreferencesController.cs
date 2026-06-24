@@ -20,7 +20,7 @@ public class UserPreferencesController : ControllerBase
     }
 
     [HttpPut]
-    public async Task<IActionResult> Update(UpdateUserPreferencesCommand cmd, CancellationToken ct)
+    public async Task<IActionResult> Update(UpdateUserPreferencesRequest cmd, CancellationToken ct)
     {
         await _userPreferences.UpdateAsync(cmd, ct);
         return NoContent();

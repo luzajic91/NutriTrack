@@ -1,8 +1,8 @@
+using NutriTrack.Shared.Models.Auth;
+
 namespace NutriTrack.Shared.Features.Identity;
 
-public record RevokeTokenCommand(string RefreshToken);
-
-public class RevokeTokenValidator : AbstractValidator<RevokeTokenCommand>
+public class RevokeTokenValidator : AbstractValidator<RevokeTokenRequest>
 {
     public RevokeTokenValidator()
     {

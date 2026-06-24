@@ -1,14 +1,8 @@
+using NutriTrack.Shared.Models.Meals;
+
 namespace NutriTrack.Shared.Features.MealLogging;
 
-public record LogMealCommand(
-    List<MealFoodEntry> Foods,
-    List<MealRecipeEntry> Recipes,
-    DateTime? ConsumedAt);
-
-public record MealFoodEntry(int FoodId, decimal Grams);
-public record MealRecipeEntry(int RecipeId, decimal Grams);
-
-public class LogMealValidator : AbstractValidator<LogMealCommand>
+public class LogMealValidator : AbstractValidator<LogMealRequest>
 {
     public LogMealValidator()
     {

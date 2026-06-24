@@ -1,3 +1,5 @@
+using NutriTrack.Shared.Models.Meals;
+
 namespace NutriTrack.Shared.Features.MealLogging;
 
 public class MealLoggingService
@@ -22,7 +24,7 @@ public class MealLoggingService
         _logger = logger;
     }
 
-    public async Task<int> LogMeal(LogMealCommand cmd, CancellationToken ct)
+    public async Task<int> LogMeal(LogMealRequest cmd, CancellationToken ct)
     {
         _logMealValidator.ValidateAndThrow(cmd);
         _logger.LogInformation("Handling {Method}", nameof(LogMeal));
@@ -72,7 +74,7 @@ public class MealLoggingService
         return entry.MealEntryId;
     }
 
-    public async Task<List<MealEntryResponse>> GetMealHistory(
+    public async Task<List<MealEntryDto>> GetMealHistory(
         DateOnly? from, DateOnly? to, CancellationToken ct)
     {
         _logger.LogInformation("Handling {Method}", nameof(GetMealHistory));
@@ -109,31 +111,33 @@ public class MealLoggingService
 
         var macros = entries.Any()
             ? await _nutritionQuery.GetMealMacrosAsync(_currentUser.UserId, effectiveFrom, effectiveTo)
-            : new Dictionary<int, List<NutrientTotalResponse>>();
+            : new Dictionary<int, List<NutrientTotalDto>>();
 
         _logger.LogInformation("Handled {Method}", nameof(GetMealHistory));
-        return entries.Select(e => new MealEntryResponse(
-            e.MealEntryId,
-            e.ConsumedAt,
-            e.Items.Select(i => new MealEntryItemResponse(
-                i.FoodId,
-                foods.GetValueOrDefault(i.FoodId, "Unknown"),
-                i.Grams)).ToList())
+        return entries.Select(e => new MealEntryDto
         {
+            MealEntryId = e.MealEntryId,
+            ConsumedAt = e.ConsumedAt,
+            Items = e.Items.Select(i => new MealEntryItemDto
+            {
+                FoodId = i.FoodId,
+                FoodName = foods.GetValueOrDefault(i.FoodId, "Unknown"),
+                Grams = i.Grams
+            }).ToList(),
             Macros = macros.GetValueOrDefault(e.MealEntryId)
         }).ToList();
     }
 
-    public async Task<DailyNutritionSummaryResponse> GetDailyNutritionSummary(
+    public async Task<DailyNutritionSummaryDto> GetDailyNutritionSummary(
         DateOnly date, CancellationToken ct)
     {
         _logger.LogInformation("Handling {Method}", nameof(GetDailyNutritionSummary));
         var nutrients = await _nutritionQuery.GetDailySummaryAsync(_currentUser.UserId, date);
         _logger.LogInformation("Handled {Method}", nameof(GetDailyNutritionSummary));
-        return new DailyNutritionSummaryResponse(date, nutrients);
+        return new DailyNutritionSummaryDto { Date = date, Nutrients = nutrients };
     }
 
-    public async Task<DailyNutritionSummaryResponse> GetSummaryRange(
+    public async Task<DailyNutritionSummaryDto> GetSummaryRange(
         DateOnly from, DateOnly to, CancellationToken ct)
     {
         _logger.LogInformation("Handling {Method}", nameof(GetSummaryRange));
@@ -141,7 +145,7 @@ public class MealLoggingService
             ? await _nutritionQuery.GetDailySummaryAsync(_currentUser.UserId, from)
             : await _nutritionQuery.GetSummaryRangeAsync(_currentUser.UserId, from, to);
         _logger.LogInformation("Handled {Method}", nameof(GetSummaryRange));
-        return new DailyNutritionSummaryResponse(from, nutrients);
+        return new DailyNutritionSummaryDto { Date = from, Nutrients = nutrients };
     }
 
 }
