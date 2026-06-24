@@ -1,8 +1,8 @@
+using NutriTrack.Shared.Models.Auth;
+
 namespace NutriTrack.Shared.Features.Identity;
 
-public record RefreshTokenCommand(string RefreshToken);
-
-public class RefreshTokenValidator : AbstractValidator<RefreshTokenCommand>
+public class RefreshTokenValidator : AbstractValidator<RefreshTokenRequest>
 {
     public RefreshTokenValidator()
     {

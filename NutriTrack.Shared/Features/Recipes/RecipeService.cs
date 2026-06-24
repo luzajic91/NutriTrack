@@ -1,3 +1,6 @@
+using NutriTrack.Shared.Models.Meals;
+using NutriTrack.Shared.Models.Recipes;
+
 namespace NutriTrack.Shared.Features.Recipes;
 
 public class RecipeService
@@ -19,7 +22,7 @@ public class RecipeService
         _logger = logger;
     }
 
-    public async Task<int> CreateRecipe(CreateRecipeCommand cmd, CancellationToken ct)
+    public async Task<int> CreateRecipe(CreateRecipeRequest cmd, CancellationToken ct)
     {
         _createRecipeValidator.ValidateAndThrow(cmd);
 
@@ -46,7 +49,7 @@ public class RecipeService
         return recipe.RecipeId;
     }
 
-    public async Task<RecipeResponse> GetRecipe(int recipeId, CancellationToken ct)
+    public async Task<RecipeDto> GetRecipe(int recipeId, CancellationToken ct)
     {
         var recipe = await _db.Recipes
             .Include(r => r.RecipeItems)
@@ -57,22 +60,66 @@ public class RecipeService
 
         var foodNames = await GetFoodNamesAsync(recipe.RecipeItems.Select(i => i.FoodId), ct);
 
-        return new RecipeResponse(
-            recipe.RecipeId,
-            recipe.Name,
-            recipe.Description,
-            recipe.ServingsCount,
-            recipe.TotalGrams,
-            recipe.IsPublic,
-            recipe.RecipeItems.Select(i => new RecipeItemResponse(
-                i.RecipeItemId,
-                i.FoodId,
-                foodNames.GetValueOrDefault(i.FoodId, "Unknown"),
-                i.Grams)).ToList());
+        _logger.LogInformation("Handled {Method}", nameof(GetRecipe));
+        return new RecipeDto
+        {
+            RecipeId = recipe.RecipeId,
+            Name = recipe.Name,
+            Description = recipe.Description,
+            ServingsCount = recipe.ServingsCount,
+            TotalGrams = recipe.TotalGrams,
+            IsPublic = recipe.IsPublic,
+            Items = recipe.RecipeItems.Select(i => new RecipeItemDto
+            {
+                RecipeItemId = i.RecipeItemId,
+                FoodId = i.FoodId,
+                FoodName = foods.GetValueOrDefault(i.FoodId, "Unknown"),
+                Grams = i.Grams
+            }).ToList()
+        };
     }
 
-    public async Task<List<RecipeSummaryResponse>> ListMyRecipes(CancellationToken ct) =>
-        await QuerySummaries(r => r.UserId == _currentUser.UserId, ct);
+    public async Task<List<RecipeSummaryDto>> ListMyRecipes(CancellationToken ct)
+    {
+        _logger.LogInformation("Handling {Method}", nameof(ListMyRecipes));
+
+        var result = await _db.Recipes
+            .Where(r => r.UserId == _currentUser.UserId)
+            .OrderBy(r => r.Name)
+            .Select(r => new RecipeSummaryDto
+            {
+                RecipeId = r.RecipeId,
+                Name = r.Name,
+                Description = r.Description,
+                ServingsCount = r.ServingsCount,
+                TotalGrams = r.TotalGrams,
+                IsPublic = r.IsPublic,
+                ItemCount = r.RecipeItems.Count
+            })
+            .ToListAsync(ct);
+
+        _logger.LogInformation("Handled {Method}", nameof(ListMyRecipes));
+        return result;
+    }
+
+    public async Task<List<RecipeSummaryDto>> ListAvailableRecipes(CancellationToken ct)
+    {
+        _logger.LogInformation("Handling {Method}", nameof(ListAvailableRecipes));
+
+        var result = await _db.Recipes
+            .Where(r => r.UserId == _currentUser.UserId || r.IsPublic)
+            .OrderBy(r => r.Name)
+            .Select(r => new RecipeSummaryDto
+            {
+                RecipeId = r.RecipeId,
+                Name = r.Name,
+                Description = r.Description,
+                ServingsCount = r.ServingsCount,
+                TotalGrams = r.TotalGrams,
+                IsPublic = r.IsPublic,
+                ItemCount = r.RecipeItems.Count
+            })
+            .ToListAsync(ct);
 
     public async Task<List<RecipeSummaryResponse>> ListAvailableRecipes(CancellationToken ct) =>
         await QuerySummaries(r => r.UserId == _currentUser.UserId || r.IsPublic, ct);
@@ -89,7 +136,7 @@ public class RecipeService
         await _db.SaveChangesAsync(ct);
     }
 
-    public async Task<RecipeNutritionResponse> GetRecipeNutrition(int recipeId, CancellationToken ct)
+    public async Task<RecipeNutritionDto> GetRecipeNutrition(int recipeId, CancellationToken ct)
     {
         var recipe = await _db.Recipes
             .Include(r => r.RecipeItems)
@@ -107,32 +154,37 @@ public class RecipeService
 
         var gramsByFood = recipe.RecipeItems.ToDictionary(i => i.FoodId, i => i.Grams);
 
-        var totals = nutrients
-            .GroupBy(fn => fn.Nutrient)
-            .Select(g => new RecipeNutrientResponse(
-                g.Key.Name,
-                g.Key.Abv,
-                Nutrition.Round(g.Sum(fn =>
-                    fn.ValuePer100g * gramsByFood.GetValueOrDefault(fn.FoodId) / 100)),
-                g.Key.MeasurementUnit.ToDisplayString()))
-            .ToList();
+        var contributions = nutrients.Select(fn => new NutrientContribution(
+            fn.Nutrient.Name,
+            fn.Nutrient.Abv,
+            fn.Nutrient.MeasurementUnit,
+            fn.ValuePer100g,
+            gramsLookup.GetValueOrDefault(fn.FoodId)));
 
-        List<RecipeNutrientResponse>? perServing = null;
-        if (recipe.ServingsCount is > 0)
+        var totals = NutritionAggregator.Aggregate(contributions);
+
+        List<NutrientTotalDto>? perServing = null;
+        if (recipe.ServingsCount.HasValue && recipe.ServingsCount > 0)
         {
-            perServing = totals.Select(t => t with
+            perServing = totals.Select(t => new NutrientTotalDto
             {
-                Total = Nutrition.Round(t.Total / recipe.ServingsCount.Value)
+                Name = t.Name,
+                Abbreviation = t.Abbreviation,
+                Total = Math.Round(t.Total / recipe.ServingsCount.Value, 2),
+                Unit = t.Unit
             }).ToList();
         }
 
-        return new RecipeNutritionResponse(
-            recipe.RecipeId,
-            recipe.Name,
-            recipe.TotalGrams,
-            recipe.ServingsCount,
-            totals,
-            perServing);
+        _logger.LogInformation("Handled {Method}", nameof(GetRecipeNutrition));
+        return new RecipeNutritionDto
+        {
+            RecipeId = recipe.RecipeId,
+            RecipeName = recipe.Name,
+            TotalGrams = recipe.TotalGrams,
+            ServingsCount = recipe.ServingsCount,
+            Nutrients = totals,
+            NutrientsPerServing = perServing
+        };
     }
 
     private void EnsureCanView(Recipe recipe)

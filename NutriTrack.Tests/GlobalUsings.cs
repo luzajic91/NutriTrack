@@ -5,6 +5,8 @@ global using NutriTrack.Shared.Common;
 global using NutriTrack.Shared.Features.Identity;
 global using NutriTrack.Shared.Features.MealLogging;
 //global using NutriTrack.Shared.Features.Recipes;
+global using NutriTrack.Shared.Models.Auth;
+global using NutriTrack.Shared.Models.Meals;
 global using NutriTrack.Shared.Persistence;
 global using NutriTrack.Domain.FoodCatalog;
 global using NutriTrack.Domain.Identity;

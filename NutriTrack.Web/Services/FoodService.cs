@@ -1,4 +1,4 @@
-using NutriTrack.Shared.Models.Common;
+﻿using NutriTrack.Shared.Models.Common;
 using NutriTrack.Shared.Models.Foods;
 using NutriTrack.Shared.Services;
 
@@ -21,6 +21,32 @@ public class FoodService : IFoodService
         return result.Items;
     }
 
-    public Task<FoodDto> GetFoodAsync(int id) =>
-        _api.GetAsync<FoodDto>($"/api/foods/{id}");
+    public async Task<FoodDto> GetFoodAsync(int id)
+    {
+        await EnsureAuthenticatedAsync();
+
+        var response = await _http.GetAsync($"/api/foods/{id}");
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            throw new Exception($"Failed to load food: {error}");
+        }
+
+        var food = await response.Content.ReadFromJsonAsync<FoodDto>();
+        return food ?? throw new Exception("Food not found");
+    }
+
+    private async Task EnsureAuthenticatedAsync()
+    {
+        var token = await _authService.GetAccessTokenAsync();
+
+        if (string.IsNullOrEmpty(token))
+        {
+            throw new Exception("Not authenticated");
+        }
+
+        _http.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+    }
 }

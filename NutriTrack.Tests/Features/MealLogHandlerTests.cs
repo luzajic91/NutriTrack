@@ -5,7 +5,7 @@ namespace NutriTrack.Tests.Features;
 public class LogMealHandlerTests
 {
     private static MealLoggingService CreateService(NutriTrackDbContext db, CurrentUserService user) =>
-        new(db, user, null!, new LogMealValidator(), NullLogger<MealLoggingService>.Instance);
+        new(db, user, new NutritionQueryService(db), new LogMealValidator(), NullLogger<MealLoggingService>.Instance);
 
     [Fact]
     public async Task Handle_DirectFoodEntry_PersistsMealWithCorrectGrams()
@@ -16,7 +16,7 @@ public class LogMealHandlerTests
 
         var service = CreateService(db, TestHelpers.CreateUser());
         await service.LogMeal(
-            new LogMealCommand([new MealFoodEntry(1, 150)], [], null),
+            new LogMealRequest { Foods = [new MealFoodEntry(1, 150)] },
             CancellationToken.None);
 
         db.MealEntries.Should().HaveCount(1);
@@ -46,7 +46,7 @@ public class LogMealHandlerTests
 
         var service = CreateService(db, TestHelpers.CreateUser());
         await service.LogMeal(
-            new LogMealCommand([], [new MealRecipeEntry(1, 250)], null),
+            new LogMealRequest { Recipes = [new MealRecipeEntry(1, 250)] },
             CancellationToken.None);
 
         var items = db.MealEntryItems.ToList();
@@ -62,7 +62,7 @@ public class LogMealHandlerTests
 
         var service = CreateService(db, TestHelpers.CreateUser());
         var act = async () => await service.LogMeal(
-            new LogMealCommand([new MealFoodEntry(99, 100)], [], null),
+            new LogMealRequest { Foods = [new MealFoodEntry(99, 100)] },
             CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>()
@@ -86,7 +86,7 @@ public class LogMealHandlerTests
 
         var service = CreateService(db, TestHelpers.CreateUser(userId: 1));
         var act = async () => await service.LogMeal(
-            new LogMealCommand([], [new MealRecipeEntry(1, 100)], null),
+            new LogMealRequest { Recipes = [new MealRecipeEntry(1, 100)] },
             CancellationToken.None);
 
         await act.Should().ThrowAsync<ForbiddenException>();

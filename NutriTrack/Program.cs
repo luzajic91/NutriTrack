@@ -5,6 +5,12 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 
+// FluentValidation in the feature services is the server-side authority; the *Request
+// models carry DataAnnotations only for the Blazor client. Suppress the automatic
+// ModelState 400 so validation failures flow through ExceptionHandlingMiddleware
+// and keep the { "error": ... } response shape the web client parses.
+builder.Services.Configure<ApiBehaviorOptions>(o => o.SuppressModelStateInvalidFilter = true);
+
 builder.Services.AddOpenApi(options =>
 {
     options.AddDocumentTransformer((document, context, cancellationToken) =>

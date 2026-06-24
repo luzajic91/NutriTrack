@@ -1,7 +1,5 @@
-using System.Data;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using NutriTrack.Shared.Auth;
@@ -39,9 +37,6 @@ public static class DependencyInjection
 
         services.AddHttpContextAccessor();
         services.AddAuthorization();
-
-        services.AddScoped<IDbConnection>(_ =>
-            new SqlConnection(configuration.GetConnectionString("Default")));
 
         services.AddScoped<JwtTokenService>();
         services.AddScoped<CurrentUserService>();

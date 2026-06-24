@@ -1,3 +1,6 @@
+using NutriTrack.Shared.Models.Common;
+using NutriTrack.Shared.Models.Foods;
+
 namespace NutriTrack.Shared.Features.FoodCatalog;
 
 public class FoodCatalogService
@@ -11,7 +14,7 @@ public class FoodCatalogService
         _logger = logger;
     }
 
-    public async Task<FoodResponse> GetFood(int foodId, CancellationToken ct)
+    public async Task<FoodDto> GetFood(int foodId, CancellationToken ct)
     {
         var food = await _db.Foods
             .Include(f => f.Brand)
@@ -22,24 +25,31 @@ public class FoodCatalogService
             .FirstOrDefaultAsync(f => f.FoodId == foodId, ct)
             ?? throw new NotFoundException($"Food {foodId} not found.");
 
-        return new FoodResponse(
-            food.FoodId,
-            food.Name,
-            food.Brand?.Name,
-            food.Description,
-            food.FoodNutrients.Select(fn => new FoodNutrientResponse(
-                fn.Nutrient.Name,
-                fn.Nutrient.Abv,
-                fn.ValuePer100g,
-                fn.Nutrient.MeasurementUnit.ToString())).ToList(),
-            food.FoodServings.Select(fs => new FoodServingResponse(
-                fs.FoodServingId,
-                fs.DisplayName,
-                fs.GramWeight,
-                fs.ServingUnit.Name)).ToList());
+        _logger.LogInformation("Handled {Method}", nameof(GetFood));
+        return new FoodDto
+        {
+            FoodId = food.FoodId,
+            Name = food.Name,
+            BrandName = food.Brand?.Name,
+            Description = food.Description,
+            Nutrients = food.FoodNutrients.Select(fn => new FoodNutrientDto
+            {
+                NutrientName = fn.Nutrient.Name,
+                Abbreviation = fn.Nutrient.Abv,
+                ValuePer100g = fn.ValuePer100g,
+                Unit = fn.Nutrient.MeasurementUnit.ToString()
+            }).ToList(),
+            Servings = food.FoodServings.Select(fs => new FoodServingDto
+            {
+                FoodServingId = fs.FoodServingId,
+                DisplayName = fs.DisplayName,
+                GramWeight = fs.GramWeight,
+                ServingUnit = fs.ServingUnit.Name
+            }).ToList()
+        };
     }
 
-    public async Task<PagedResult<FoodSummaryResponse>> SearchFoods(
+    public async Task<PagedResultDto<FoodSummaryDto>> SearchFoods(
         string? search, int? brandId, int page, int pageSize, CancellationToken ct)
     {
         var query = _db.Foods
@@ -58,13 +68,22 @@ public class FoodCatalogService
             .OrderBy(f => f.Name)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(f => new FoodSummaryResponse(
-                f.FoodId,
-                f.Name,
-                f.Brand != null ? f.Brand.Name : null,
-                f.Description))
+            .Select(f => new FoodSummaryDto
+            {
+                FoodId = f.FoodId,
+                Name = f.Name,
+                BrandName = f.Brand != null ? f.Brand.Name : null,
+                Description = f.Description
+            })
             .ToListAsync(ct);
 
-        return new PagedResult<FoodSummaryResponse>(items, totalCount, page, pageSize);
+        _logger.LogInformation("Handled {Method}", nameof(SearchFoods));
+        return new PagedResultDto<FoodSummaryDto>
+        {
+            Items = items,
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize
+        };
     }
 }

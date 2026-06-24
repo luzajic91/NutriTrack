@@ -1,13 +1,8 @@
+using NutriTrack.Shared.Models.UserPreferences;
+
 namespace NutriTrack.Shared.Features.UserPreferences;
 
-public record UpdateUserPreferencesCommand(
-    decimal? WeightKg,
-    int? CalorieGoal,
-    int? ProteinGoalG,
-    int? CarbGoalG,
-    int? FatGoalG);
-
-public class UpdateUserPreferencesValidator : AbstractValidator<UpdateUserPreferencesCommand>
+public class UpdateUserPreferencesValidator : AbstractValidator<UpdateUserPreferencesRequest>
 {
     public UpdateUserPreferencesValidator()
     {

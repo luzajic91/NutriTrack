@@ -10,7 +10,7 @@ public class RecipesController : ControllerBase
     public RecipesController(RecipeService recipes) => _recipes = recipes;
 
     [HttpPost]
-    public async Task<IActionResult> CreateRecipe(CreateRecipeCommand cmd, CancellationToken ct)
+    public async Task<IActionResult> CreateRecipe(CreateRecipeRequest cmd, CancellationToken ct)
     {
         var id = await _recipes.CreateRecipe(cmd, ct);
         return CreatedAtAction(nameof(GetRecipe), new { id }, id);

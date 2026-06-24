@@ -10,7 +10,7 @@ public class MealsController : ControllerBase
     public MealsController(MealLoggingService meals) => _meals = meals;
 
     [HttpPost]
-    public async Task<IActionResult> LogMeal(LogMealCommand cmd, CancellationToken ct)
+    public async Task<IActionResult> LogMeal(LogMealRequest cmd, CancellationToken ct)
     {
         var id = await _meals.LogMeal(cmd, ct);
         return CreatedAtAction(nameof(LogMeal), new { id }, id);

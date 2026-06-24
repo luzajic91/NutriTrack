@@ -1,6 +1,5 @@
 ﻿using Blazored.LocalStorage;
 using Microsoft.AspNetCore.Components.Authorization;
-using NutriTrack.Shared.Features.Identity;
 using NutriTrack.Shared.Models.Auth;
 using NutriTrack.Shared.Services;
 using System.Net.Http.Json;
@@ -46,7 +45,7 @@ public class AuthService : IAuthService
             throw new Exception($"Login failed: {errorContent}");
         }
 
-        var result = await response.Content.ReadFromJsonAsync<LoginResult>()
+        var result = await response.Content.ReadFromJsonAsync<AuthTokensDto>()
             ?? throw new Exception("Failed to parse login response");
 
         await _localStorage.SetItemAsync(AccessTokenKey, result.AccessToken);
@@ -136,7 +135,7 @@ public class AuthService : IAuthService
                     return null;
                 }
 
-                var result = await response.Content.ReadFromJsonAsync<LoginResult>();
+                var result = await response.Content.ReadFromJsonAsync<AuthTokensDto>();
                 if (result == null)
                 {
                     await LogoutAsync();
