@@ -82,7 +82,7 @@
                 <button class="filter-chip @(_activeChip == "yesterday" ? "active" : "")" @onclick='() => SelectChip("yesterday")'>Yesterday</button>
                 <button class="filter-chip @(_activeChip == "week" ? "active" : "")" @onclick='() => SelectChip("week")'>This Week</button>
                 <button class="filter-chip @(_activeChip == "month" ? "active" : "")" @onclick='() => SelectChip("month")'>This Month</button>
-                <button class="filter-chip @(_activeChip == "all" ? "active" : "")" @onclick='() => SelectChip("all")'>All Time</button>
+                <!--<button class="filter-chip @(_activeChip == "all" ? "active" : "")" @onclick='() => SelectChip("all")'>All Time</button>-->
 
                 <div class="filter-custom-range">
                     <input type="date"
@@ -149,7 +149,7 @@
     private Dictionary<DateOnly, List<MealEntryDto>> _groupedHistory = new();
     private bool _chartsNeedRender;
 
-    private string _activeChip = "all";
+    private string _activeChip = "today";
     private DateOnly? _filterFrom;
     private DateOnly? _filterTo;
     private DateOnly? _customFrom;
