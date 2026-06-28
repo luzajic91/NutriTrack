@@ -99,10 +99,6 @@ public class MealLoggingService
         var foodNames = await GetFoodNamesAsync(
             entries.SelectMany(e => e.Items).Select(i => i.FoodId), ct);
 
-        var foods = await _db.Foods
-            .Where(f => foodIds.Contains(f.FoodId))
-            .ToDictionaryAsync(f => f.FoodId, f => f.Name, ct);
-
         var effectiveFrom = from ?? DateOnly.FromDateTime(entries.LastOrDefault()?.ConsumedAt ?? DateTime.UtcNow);
         var effectiveTo   = to   ?? DateOnly.FromDateTime(entries.FirstOrDefault()?.ConsumedAt ?? DateTime.UtcNow);
 
@@ -118,7 +114,7 @@ public class MealLoggingService
             Items = e.Items.Select(i => new MealEntryItemDto
             {
                 FoodId = i.FoodId,
-                FoodName = foods.GetValueOrDefault(i.FoodId, "Unknown"),
+                FoodName = foodNames.GetValueOrDefault(i.FoodId, "Unknown"),
                 Grams = i.Grams
             }).ToList(),
             Macros = macros.GetValueOrDefault(e.MealEntryId)

@@ -1,6 +1,7 @@
 using FluentValidation;
 using Microsoft.Extensions.Logging.Abstractions;
 using NutriTrack.Shared.Features.UserPreferences;
+using NutriTrack.Shared.Models.UserPreferences;
 
 namespace NutriTrack.Tests.Features;
 
@@ -14,7 +15,7 @@ public class UserPreferencesServiceTests
     {
         await using var db = TestHelpers.CreateDb();
 
-        var result = await CreateService(db, TestHelpers.CreateUser()).GetPreferences(CancellationToken.None);
+        var result = await CreateService(db, TestHelpers.CreateUser()).GetAsync(CancellationToken.None);
 
         result.WeightKg.Should().BeNull();
         result.CalorieGoal.Should().BeNull();
@@ -29,11 +30,11 @@ public class UserPreferencesServiceTests
         await using var db = TestHelpers.CreateDb();
         var service = CreateService(db, TestHelpers.CreateUser(userId: 1));
 
-        await service.UpdatePreferences(new UpdateUserPreferencesCommand(80, 2000, 150, 200, 65), CancellationToken.None);
-        await service.UpdatePreferences(new UpdateUserPreferencesCommand(90, 2100, 160, 210, 70), CancellationToken.None);
+        await service.UpdateAsync(new UpdateUserPreferencesRequest { WeightKg = 80, CalorieGoal = 2000, ProteinGoalG = 150, CarbGoalG = 200, FatGoalG = 65 }, CancellationToken.None);
+        await service.UpdateAsync(new UpdateUserPreferencesRequest { WeightKg = 90, CalorieGoal = 2100, ProteinGoalG = 160, CarbGoalG = 210, FatGoalG = 70 }, CancellationToken.None);
 
         db.UserPreferences.Should().HaveCount(1);
-        var saved = await service.GetPreferences(CancellationToken.None);
+        var saved = await service.GetAsync(CancellationToken.None);
         saved.WeightKg.Should().Be(90);
         saved.CalorieGoal.Should().Be(2100);
     }
@@ -44,8 +45,8 @@ public class UserPreferencesServiceTests
         await using var db = TestHelpers.CreateDb();
         var service = CreateService(db, TestHelpers.CreateUser());
 
-        var act = async () => await service.UpdatePreferences(
-            new UpdateUserPreferencesCommand(1000, null, null, null, null), CancellationToken.None);
+        var act = async () => await service.UpdateAsync(
+            new UpdateUserPreferencesRequest { WeightKg = 1000 }, CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
         db.UserPreferences.Should().BeEmpty();

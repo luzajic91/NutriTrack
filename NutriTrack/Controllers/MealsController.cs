@@ -31,7 +31,7 @@ public class MealsController : ControllerBase
         [FromQuery] DateOnly? date,
         CancellationToken ct)
     {
-        var result = await _meals.GetDailyNutritionSummary(date, ct);
+        var result = await _meals.GetDailyNutritionSummary(date ?? DateOnly.FromDateTime(DateTime.UtcNow), ct);
         return Ok(result);
     }
 

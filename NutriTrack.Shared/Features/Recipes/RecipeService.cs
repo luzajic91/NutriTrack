@@ -73,7 +73,7 @@ public class RecipeService
             {
                 RecipeItemId = i.RecipeItemId,
                 FoodId = i.FoodId,
-                FoodName = foods.GetValueOrDefault(i.FoodId, "Unknown"),
+                FoodName = foodNames.GetValueOrDefault(i.FoodId, "Unknown"),
                 Grams = i.Grams
             }).ToList()
         };
@@ -121,8 +121,9 @@ public class RecipeService
             })
             .ToListAsync(ct);
 
-    public async Task<List<RecipeSummaryResponse>> ListAvailableRecipes(CancellationToken ct) =>
-        await QuerySummaries(r => r.UserId == _currentUser.UserId || r.IsPublic, ct);
+        _logger.LogInformation("Handled {Method}", nameof(ListAvailableRecipes));
+        return result;
+    }
 
     public async Task DeleteRecipe(int recipeId, CancellationToken ct)
     {
@@ -159,7 +160,7 @@ public class RecipeService
             fn.Nutrient.Abv,
             fn.Nutrient.MeasurementUnit,
             fn.ValuePer100g,
-            gramsLookup.GetValueOrDefault(fn.FoodId)));
+            gramsByFood.GetValueOrDefault(fn.FoodId)));
 
         var totals = NutritionAggregator.Aggregate(contributions);
 
@@ -198,21 +199,6 @@ public class RecipeService
         if (recipe.UserId != _currentUser.UserId)
             throw new ForbiddenException("You do not have permission to delete this recipe.");
     }
-
-    private async Task<List<RecipeSummaryResponse>> QuerySummaries(
-        System.Linq.Expressions.Expression<Func<Recipe, bool>> predicate, CancellationToken ct) =>
-        await _db.Recipes
-            .Where(predicate)
-            .OrderBy(r => r.Name)
-            .Select(r => new RecipeSummaryResponse(
-                r.RecipeId,
-                r.Name,
-                r.Description,
-                r.ServingsCount,
-                r.TotalGrams,
-                r.IsPublic,
-                r.RecipeItems.Count))
-            .ToListAsync(ct);
 
     private async Task<Dictionary<int, string>> GetFoodNamesAsync(
         IEnumerable<int> foodIds, CancellationToken ct)
