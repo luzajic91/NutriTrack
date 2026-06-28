@@ -9,7 +9,8 @@
       "Bash(Select-Object -ExpandProperty FullName)",
       "Bash(Sort-Object)",
       "Bash(grep -r \"IAuthService\\\\|IFoodService\\\\|IMealService\\\\|IRecipeService\\\\|IUserPreferencesService\" \"C:\\\\Users\\\\dadot\\\\source\\\\repos\" --include=\"*.cs\" | grep -v \"NutriTrack.Shared/Services\" | head -20)",
-      "Bash(grep -h \"^\\\\..*{\" meals.css)"
+      "Bash(grep -h \"^\\\\..*{\" meals.css)",
+      "Bash(git stash *)"
     ]
   }
 }
