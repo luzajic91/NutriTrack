@@ -1,7 +1,15 @@
 using NutriTrack.Api;
 using Microsoft.AspNetCore.OpenApi;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Serilog reads its sinks/levels from the "Serilog" config section. The file sink
+// is configured in appsettings.json; a Console sink is layered in for Development.
+builder.Host.UseSerilog((context, services, configuration) => configuration
+    .ReadFrom.Configuration(context.Configuration)
+    .ReadFrom.Services(services)
+    .Enrich.FromLogContext());
 
 builder.Services.AddControllers();
 
@@ -51,9 +59,38 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors();
 
+// Correlation id must run first so every downstream log line carries it.
+app.UseMiddleware<CorrelationIdMiddleware>();
+
+// One structured summary line per request (method, path, status, elapsed, user).
+app.UseSerilogRequestLogging(options =>
+{
+    options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+    {
+        if (httpContext.Items.TryGetValue(CorrelationIdMiddleware.HeaderName, out var correlationId))
+            diagnosticContext.Set("CorrelationId", correlationId);
+
+        var userId = httpContext.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (!string.IsNullOrEmpty(userId))
+            diagnosticContext.Set("UserId", userId);
+    };
+});
+
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-app.Run();
+try
+{
+    app.Run();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "NutriTrack API terminated unexpectedly");
+    throw;
+}
+finally
+{
+    Log.CloseAndFlush();
+}
