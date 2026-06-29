@@ -1,5 +1,6 @@
 ﻿using Blazored.LocalStorage;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.Extensions.Logging;
 using System.Security.Claims;
 
 namespace NutriTrack.Web.Services;
@@ -8,12 +9,15 @@ public class AuthStateProvider : AuthenticationStateProvider
 {
     private readonly ILocalStorageService _localStorage;
     private readonly HttpClient _http;
+    private readonly ILogger<AuthStateProvider> _logger;
     private readonly ClaimsPrincipal _anonymous = new(new ClaimsIdentity());
 
-    public AuthStateProvider(ILocalStorageService localStorage, HttpClient http)
+    public AuthStateProvider(
+        ILocalStorageService localStorage, HttpClient http, ILogger<AuthStateProvider> logger)
     {
         _localStorage = localStorage;
         _http = http;
+        _logger = logger;
     }
 
     public override async Task<AuthenticationState> GetAuthenticationStateAsync()
@@ -36,8 +40,9 @@ public class AuthStateProvider : AuthenticationStateProvider
 
             return new AuthenticationState(user);
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Failed to resolve authentication state; treating user as anonymous");
             return new AuthenticationState(_anonymous);
         }
     }

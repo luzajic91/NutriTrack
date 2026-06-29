@@ -58,5 +58,7 @@ public class UserPreferencesService
         prefs.FatGoalG = cmd.FatGoalG;
 
         await _db.SaveChangesAsync(ct);
+
+        _logger.LogInformation("Preferences updated for user {UserId}", _currentUser.UserId);
     }
 }

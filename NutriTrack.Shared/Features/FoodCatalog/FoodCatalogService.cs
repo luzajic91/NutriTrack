@@ -25,7 +25,6 @@ public class FoodCatalogService
             .FirstOrDefaultAsync(f => f.FoodId == foodId, ct)
             ?? throw new NotFoundException($"Food {foodId} not found.");
 
-        _logger.LogInformation("Handled {Method}", nameof(GetFood));
         return new FoodDto
         {
             FoodId = food.FoodId,
@@ -52,6 +51,10 @@ public class FoodCatalogService
     public async Task<PagedResultDto<FoodSummaryDto>> SearchFoods(
         string? search, int? brandId, int page, int pageSize, CancellationToken ct)
     {
+        _logger.LogDebug(
+            "Searching foods (search={Search}, brandId={BrandId}, page={Page})",
+            search, brandId, page);
+
         var query = _db.Foods
             .Include(f => f.Brand)
             .AsQueryable();
@@ -77,7 +80,6 @@ public class FoodCatalogService
             })
             .ToListAsync(ct);
 
-        _logger.LogInformation("Handled {Method}", nameof(SearchFoods));
         return new PagedResultDto<FoodSummaryDto>
         {
             Items = items,
