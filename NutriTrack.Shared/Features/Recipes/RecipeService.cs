@@ -46,6 +46,9 @@ public class RecipeService
         _db.Add(recipe);
         await _db.SaveChangesAsync(ct);
 
+        _logger.LogInformation(
+            "Recipe {RecipeId} created for user {UserId} ({ItemCount} items)",
+            recipe.RecipeId, _currentUser.UserId, recipe.RecipeItems.Count);
         return recipe.RecipeId;
     }
 
@@ -60,7 +63,6 @@ public class RecipeService
 
         var foodNames = await GetFoodNamesAsync(recipe.RecipeItems.Select(i => i.FoodId), ct);
 
-        _logger.LogInformation("Handled {Method}", nameof(GetRecipe));
         return new RecipeDto
         {
             RecipeId = recipe.RecipeId,
@@ -81,9 +83,7 @@ public class RecipeService
 
     public async Task<List<RecipeSummaryDto>> ListMyRecipes(CancellationToken ct)
     {
-        _logger.LogInformation("Handling {Method}", nameof(ListMyRecipes));
-
-        var result = await _db.Recipes
+        return await _db.Recipes
             .Where(r => r.UserId == _currentUser.UserId)
             .OrderBy(r => r.Name)
             .Select(r => new RecipeSummaryDto
@@ -97,16 +97,11 @@ public class RecipeService
                 ItemCount = r.RecipeItems.Count
             })
             .ToListAsync(ct);
-
-        _logger.LogInformation("Handled {Method}", nameof(ListMyRecipes));
-        return result;
     }
 
     public async Task<List<RecipeSummaryDto>> ListAvailableRecipes(CancellationToken ct)
     {
-        _logger.LogInformation("Handling {Method}", nameof(ListAvailableRecipes));
-
-        var result = await _db.Recipes
+        return await _db.Recipes
             .Where(r => r.UserId == _currentUser.UserId || r.IsPublic)
             .OrderBy(r => r.Name)
             .Select(r => new RecipeSummaryDto
@@ -120,9 +115,6 @@ public class RecipeService
                 ItemCount = r.RecipeItems.Count
             })
             .ToListAsync(ct);
-
-        _logger.LogInformation("Handled {Method}", nameof(ListAvailableRecipes));
-        return result;
     }
 
     public async Task DeleteRecipe(int recipeId, CancellationToken ct)
@@ -135,6 +127,9 @@ public class RecipeService
 
         _db.Remove(recipe);
         await _db.SaveChangesAsync(ct);
+
+        _logger.LogInformation(
+            "Recipe {RecipeId} deleted by user {UserId}", recipeId, _currentUser.UserId);
     }
 
     public async Task<RecipeNutritionDto> GetRecipeNutrition(int recipeId, CancellationToken ct)
@@ -176,7 +171,6 @@ public class RecipeService
             }).ToList();
         }
 
-        _logger.LogInformation("Handled {Method}", nameof(GetRecipeNutrition));
         return new RecipeNutritionDto
         {
             RecipeId = recipe.RecipeId,

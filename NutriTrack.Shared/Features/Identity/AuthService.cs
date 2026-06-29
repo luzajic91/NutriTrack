@@ -54,6 +54,7 @@ public class AuthService
         _db.Add(user);
         await _db.SaveChangesAsync(ct);
 
+        _logger.LogInformation("User {UserId} registered", user.UserId);
         return user.UserId;
     }
 
@@ -63,11 +64,19 @@ public class AuthService
 
         var user = await _db.Users
             .Include(u => u.Role)
-            .FirstOrDefaultAsync(u => u.Email == cmd.Email, ct)
-            ?? throw new NotFoundException("Invalid email or password.");
+            .FirstOrDefaultAsync(u => u.Email == cmd.Email, ct);
+
+        if (user is null)
+        {
+            _logger.LogWarning("Failed login attempt for {Email} (no such user)", cmd.Email);
+            throw new NotFoundException("Invalid email or password.");
+        }
 
         if (!BCrypt.Net.BCrypt.Verify(cmd.Password, user.PasswordHash))
+        {
+            _logger.LogWarning("Failed login attempt for user {UserId} (bad password)", user.UserId);
             throw new NotFoundException("Invalid email or password.");
+        }
 
         var accessToken = _jwt.GenerateAccessToken(user.UserId, user.Role.Name);
         var refreshToken = _jwt.GenerateRefreshToken();
@@ -82,7 +91,7 @@ public class AuthService
 
         await _db.SaveChangesAsync(ct);
 
-        _logger.LogInformation("Handled {Method}", nameof(Login));
+        _logger.LogInformation("User {UserId} logged in", user.UserId);
         return new AuthTokensDto { AccessToken = accessToken, RefreshToken = refreshToken };
     }
 
@@ -97,7 +106,12 @@ public class AuthService
             ?? throw new NotFoundException("Refresh token not found.");
 
         if (!existing.IsActive)
+        {
+            _logger.LogWarning(
+                "Refresh attempted with inactive token {Token} for user {UserId}",
+                LogMasking.Mask(existing.Token), existing.UserId);
             throw new ForbiddenException("Refresh token is no longer active.");
+        }
 
         var newAccessToken = _jwt.GenerateAccessToken(
             existing.User.UserId, existing.User.Role.Name);
@@ -116,7 +130,7 @@ public class AuthService
 
         await _db.SaveChangesAsync(ct);
 
-        _logger.LogInformation("Handled {Method}", nameof(RefreshToken));
+        _logger.LogInformation("Access token refreshed for user {UserId}", existing.UserId);
         return new AuthTokensDto { AccessToken = newAccessToken, RefreshToken = newRefreshToken };
     }
 
@@ -133,5 +147,7 @@ public class AuthService
 
         token.RevokedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
+
+        _logger.LogInformation("Refresh token revoked for user {UserId}", token.UserId);
     }
 }

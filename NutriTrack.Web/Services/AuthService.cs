@@ -1,5 +1,6 @@
 ﻿using Blazored.LocalStorage;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.Extensions.Logging;
 using NutriTrack.Shared.Models.Auth;
 using NutriTrack.Shared.Services;
 using System.Net.Http.Json;
@@ -14,6 +15,7 @@ public class AuthService : IAuthService
     private readonly HttpClient _http;
     private readonly ILocalStorageService _localStorage;
     private readonly AuthenticationStateProvider _authStateProvider;
+    private readonly ILogger<AuthService> _logger;
 
     // LocalStorage keys
     private const string AccessTokenKey = "accessToken";
@@ -22,11 +24,13 @@ public class AuthService : IAuthService
     public AuthService(
         HttpClient http,
         ILocalStorageService localStorage,
-        AuthenticationStateProvider authStateProvider)
+        AuthenticationStateProvider authStateProvider,
+        ILogger<AuthService> logger)
     {
         _http = http;
         _localStorage = localStorage;
         _authStateProvider = authStateProvider;
+        _logger = logger;
     }
 
     public async Task LoginAsync(string email, string password)
@@ -88,9 +92,10 @@ public class AuthService : IAuthService
                 }
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignore errors - we're logging out anyway
+            // Ignore errors - we're logging out anyway, but record why the revoke failed.
+            _logger.LogWarning(ex, "Failed to revoke refresh token during logout");
         }
 
         await _localStorage.RemoveItemAsync(AccessTokenKey);
@@ -149,8 +154,9 @@ public class AuthService : IAuthService
 
                 return result.AccessToken;
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogWarning(ex, "Token refresh failed; logging out");
                 await LogoutAsync();
                 return null;
             }
