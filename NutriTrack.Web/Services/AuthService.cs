@@ -71,6 +71,17 @@ public class AuthService : IAuthService
         }
     }
 
+    public async Task ConfirmEmailAsync(string token)
+    {
+        var response = await _http.PostAsJsonAsync("/api/auth/confirm-email", new { token });
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorContent = await response.Content.ReadAsStringAsync();
+            throw new Exception($"Confirmation failed: {errorContent}");
+        }
+    }
+
     public async Task LogoutAsync()
     {
         try

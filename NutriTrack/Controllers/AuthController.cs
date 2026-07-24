@@ -15,6 +15,13 @@ public class AuthController : ControllerBase
         return CreatedAtAction(nameof(Register), new { userId });
     }
 
+    [HttpPost("confirm-email")]
+    public async Task<IActionResult> ConfirmEmail(ConfirmEmailRequest cmd, CancellationToken ct)
+    {
+        await _auth.ConfirmEmail(cmd, ct);
+        return NoContent();
+    }
+
     [HttpPost("login")]
     public async Task<IActionResult> Login(LoginRequest cmd, CancellationToken ct)
     {

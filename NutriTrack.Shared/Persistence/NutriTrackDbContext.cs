@@ -7,6 +7,7 @@ public class NutriTrackDbContext : DbContext
     public DbSet<User> Users => Set<User>();
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<EmailConfirmationToken> EmailConfirmationTokens => Set<EmailConfirmationToken>();
     public DbSet<Food> Foods => Set<Food>();
     public DbSet<Brand> Brands => Set<Brand>();
     public DbSet<Nutrient> Nutrients => Set<Nutrient>();

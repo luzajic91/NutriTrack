@@ -8,6 +8,7 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         b.HasKey(u => u.UserId);
         b.Property(u => u.Email).HasMaxLength(255).IsRequired();
         b.Property(u => u.PasswordHash).HasMaxLength(255).IsRequired();
+        b.Property(u => u.EmailConfirmed).HasDefaultValue(false);
         b.HasOne(u => u.Role)
          .WithMany()
          .HasForeignKey(u => u.RoleId)
