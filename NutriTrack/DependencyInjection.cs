@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using NutriTrack.Shared.Auth;
+using NutriTrack.Shared.Email;
 using NutriTrack.Shared.Persistence;
 
 namespace NutriTrack.Api;
@@ -42,11 +43,16 @@ public static class DependencyInjection
         services.AddScoped<CurrentUserService>();
         services.AddScoped<NutritionQueryService>();
 
+        // email
+        services.Configure<EmailOptions>(configuration.GetSection(EmailOptions.SectionName));
+        services.AddScoped<IEmailSender, SmtpEmailSender>();
+
         // validators
         services.AddScoped<RegisterValidator>();
         services.AddScoped<LoginValidator>();
         services.AddScoped<RefreshTokenValidator>();
         services.AddScoped<RevokeTokenValidator>();
+        services.AddScoped<ConfirmEmailValidator>();
         services.AddScoped<LogMealValidator>();
         services.AddScoped<CreateRecipeValidator>();
         services.AddScoped<UpdateUserPreferencesValidator>();

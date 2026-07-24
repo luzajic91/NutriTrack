@@ -1,30 +1,56 @@
-NutriTrack is a REST API built with .NET / C#, backed by a SQL Server database.
+# NutriTrack
 
-What it does
+A nutrition and calorie tracking application. Users register, log meals, manage
+recipes, and query nutritional breakdowns over time. It is built as a .NET
+solution with a REST API backed by SQL Server and a Blazor WebAssembly client.
 
-A nutrition and calorie tracking application that lets users log meals, manage recipes, and query nutritional breakdowns. It revolves around four domains:
+## What it does
 
-Identity — user registration, JWT-based authentication, and refresh token rotation
+The application revolves around five domains:
 
-FoodCatalog — a read-only food database with nutrients, brands, and serving definitions
+- **Identity** — user registration, JWT-based authentication, and refresh token rotation.
+- **FoodCatalog** — a read-only food database with nutrients, brands, and serving definitions.
+- **Recipes** — users create, view, and delete personal recipes built from catalog foods, with per-serving nutrition breakdowns.
+- **MealLogging** — users log meals by referencing foods or recipes directly. Recipes are expanded into their constituent foods at log time (scaled by the logged grams), so meal history stays stable even if the recipe changes later. Daily and ranged nutrition summaries are computed from the logged foods.
+- **UserPreferences** — per-user settings.
 
-Recipes — users can create, view, and delete personal recipes built from catalog foods, with per-serving nutrition breakdowns
+## Architecture
 
-MealLogging — users log meals by referencing foods or recipes directly; recipes are automatically expanded into their constituent foods at log time so history stays stable even if the recipe changes later. Daily nutrition summaries are computed via raw SQL through Dapper and cached for past days
+The solution is split into five projects with a one-directional dependency flow:
 
+```
+NutriTrack.Web ─┐                 NutriTrack ─┐   (the API host)
+ (Blazor WASM)  │                             │
+                └──► NutriTrack.Shared ◄───────┘
+                          │
+                          ▼
+                   NutriTrack.Domain   (entities only, no dependencies)
+```
 
-Tech stack
+- **NutriTrack.Domain** — entity classes only, grouped by domain (FoodCatalog, Identity, Recipes, MealLogging, UserPreferences). No external dependencies.
+- **NutriTrack.Shared** — the bulk of the system: feature services (the business logic), FluentValidation validators, the EF Core `DbContext` and entity configurations, migrations, DTOs, service interfaces, and auth helpers. The nutrition math lives here in `NutritionQueryService` + `NutritionAggregator`.
+- **NutriTrack** (API host) — thin ASP.NET Core Web API. Controllers validate auth and delegate to a single feature-service method. Hosts DI wiring, JWT configuration, and exception-handling middleware.
+- **NutriTrack.Web** — Blazor WebAssembly client. References Shared to reuse DTOs and service interfaces as the wire contract; all calls go through a central `ApiClient` that attaches the bearer token. The client does not touch EF Core or the database directly.
+- **NutriTrack.Tests** — xUnit tests targeting the feature services, with EF Core InMemory.
 
-ASP.NET Core Web API with Controllers
+### Request lifecycle
 
-MediatR for request handling — every feature is a self-contained command or query
+Each feature is a self-contained service class registered in DI. A controller
+action calls one service method; the service validates with FluentValidation and
+performs the work via EF Core. Domain exceptions (`NotFoundException`,
+`ForbiddenException`) are translated to HTTP status codes by
+`ExceptionHandlingMiddleware`.
 
-Entity Framework Core for standard CRUD operations
+The same DTO types travel from the Blazor client through the API to the service,
+because both ends reference the Shared project.
 
-Dapper for the complex nutrition aggregation query
+## Tech stack
 
-JWT Bearer tokens with refresh token rotation for authentication
-
-BCrypt for password hashing
-
-Swagger UI for API documentation and testing
+- ASP.NET Core Web API with Controllers
+- Blazor WebAssembly client (Blazored.LocalStorage for token storage)
+- Plain injected feature-service classes for request handling (one self-contained service per domain)
+- Entity Framework Core (SQL Server) for data access, with code-first migrations
+- FluentValidation for server-side request validation (the *Request DTOs also carry DataAnnotations for the Blazor client)
+- JWT Bearer tokens with refresh token rotation for authentication
+- BCrypt for password hashing
+- Scalar / OpenAPI for API documentation (Development environment)
