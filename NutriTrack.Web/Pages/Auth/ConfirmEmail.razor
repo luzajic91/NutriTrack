@@ -1,0 +1,82 @@
+@page "/confirm-email"
+@layout LoginLayout
+@inject IAuthService AuthService
+
+<PageTitle>Confirm Email - NutriTrack</PageTitle>
+
+<div class="login-card">
+    <h2>Email Confirmation</h2>
+
+    @if (_state == State.Working)
+    {
+        <p class="subtitle">Confirming your email address…</p>
+        <div class="spinner"></div>
+    }
+    else if (_state == State.Success)
+    {
+        <div class="alert alert-success" role="alert">
+            <strong>You're all set!</strong> Your email has been confirmed.
+            <a href="/login" class="alert-link">Click here to login</a>
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-danger" role="alert">
+            @_errorMessage
+        </div>
+        <div class="signup-prompt">
+            <a href="/login">Back to login</a>
+        </div>
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "token")]
+    private string? Token { get; set; }
+
+    private enum State { Working, Success, Error }
+
+    private State _state = State.Working;
+    private string _errorMessage = "We couldn't confirm your email.";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (string.IsNullOrWhiteSpace(Token))
+        {
+            _state = State.Error;
+            _errorMessage = "This confirmation link is missing its token.";
+            return;
+        }
+
+        try
+        {
+            await AuthService.ConfirmEmailAsync(Token);
+            _state = State.Success;
+        }
+        catch (Exception ex)
+        {
+            _state = State.Error;
+            _errorMessage = ParseErrorMessage(ex.Message);
+        }
+    }
+
+    private static string ParseErrorMessage(string errorMessage)
+    {
+        try
+        {
+            if (errorMessage.Contains("{\"error\""))
+            {
+                var jsonPart = errorMessage[errorMessage.IndexOf("{\"error\"")..];
+                var doc = System.Text.Json.JsonDocument.Parse(jsonPart);
+                if (doc.RootElement.TryGetProperty("error", out var errorProp))
+                    return errorProp.GetString() ?? "We couldn't confirm your email.";
+            }
+        }
+        catch
+        {
+            // fall through to the generic message
+        }
+
+        return "This confirmation link is invalid, expired, or already used.";
+    }
+}

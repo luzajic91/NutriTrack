@@ -16,6 +16,7 @@
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1">
       <ExcludeAssets Condition="'$(TargetPlatformIdentifier)' == 'browser'">all</ExcludeAssets>
     </PackageReference>
+    <PackageReference Include="MailKit" Version="4.17.0" />
     <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.16.0">
       <ExcludeAssets Condition="'$(TargetPlatformIdentifier)' == 'browser'">all</ExcludeAssets>
     </PackageReference>

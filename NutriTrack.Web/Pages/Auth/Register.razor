@@ -13,8 +13,8 @@
     @if (_registrationSuccess)
     {
         <div class="alert alert-success" role="alert">
-            <strong>Success!</strong> Your account has been created.
-            <a href="/login" class="alert-link">Click here to login</a>
+            <strong>Almost there!</strong> Check your email for a confirmation link to
+            activate your account. You'll be able to log in once it's confirmed.
         </div>
     }
     else
@@ -107,12 +107,9 @@
             // - Return userId if successful
             await AuthService.RegisterAsync(_model.Email, _model.Password);
 
-            // Step 4: Registration successful!
+            // Step 4: Registration successful — the account is created but inactive
+            // until the user clicks the confirmation link we just emailed them.
             _registrationSuccess = true;
-
-            // Step 5: Auto-redirect to login after 2 seconds
-            await Task.Delay(2000);
-            Navigation.NavigateTo("/login");
         }
         catch (Exception ex)
         {

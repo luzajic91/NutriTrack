@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NutriTrack.Shared.Persistence;
 
@@ -11,9 +12,11 @@ using NutriTrack.Shared.Persistence;
 namespace NutriTrack.Shared.Migrations
 {
     [DbContext(typeof(NutriTrackDbContext))]
-    partial class NutriTrackDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260724103213_AddEmailConfirmation")]
+    partial class AddEmailConfirmation
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

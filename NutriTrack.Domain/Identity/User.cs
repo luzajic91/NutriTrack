@@ -11,7 +11,9 @@ public class User
     public int RoleId { get; set; }
     public string Email { get; set; } = default!;
     public string PasswordHash { get; set; } = default!;
+    public bool EmailConfirmed { get; set; }
 
     public Role Role { get; set; } = default!;
     public ICollection<RefreshToken> RefreshTokens { get; set; } = [];
+    public ICollection<EmailConfirmationToken> EmailConfirmationTokens { get; set; } = [];
 }
