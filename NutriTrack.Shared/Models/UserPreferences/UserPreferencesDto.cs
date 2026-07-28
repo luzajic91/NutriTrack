@@ -18,4 +18,7 @@ public class UserPreferencesDto
 
     [JsonPropertyName("fatGoalG")]
     public int? FatGoalG { get; set; }
+
+    [JsonPropertyName("fiberGoalG")]
+    public int? FiberGoalG { get; set; }
 }

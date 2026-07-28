@@ -31,6 +31,8 @@
                                          OnSave="v => SaveAsync(p => p.CarbGoalG = AsGoal(v))" />
                 <EditablePreferenceField Label="Fat" Unit="g" Value="_prefs.FatGoalG"
                                          OnSave="v => SaveAsync(p => p.FatGoalG = AsGoal(v))" />
+                <EditablePreferenceField Label="Fiber" Unit="g" Value="_prefs.FiberGoalG"
+                                         OnSave="v => SaveAsync(p => p.FiberGoalG = AsGoal(v))" />
             </div>
         </div>
     </LoadingOrError>
@@ -90,6 +92,7 @@
         CalorieGoal = p.CalorieGoal,
         ProteinGoalG = p.ProteinGoalG,
         CarbGoalG = p.CarbGoalG,
-        FatGoalG = p.FatGoalG
+        FatGoalG = p.FatGoalG,
+        FiberGoalG = p.FiberGoalG
     };
 }

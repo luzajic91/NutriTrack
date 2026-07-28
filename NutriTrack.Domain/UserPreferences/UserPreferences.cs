@@ -9,4 +9,5 @@ public class UserPreferences
     public int? ProteinGoalG { get; set; }
     public int? CarbGoalG { get; set; }
     public int? FatGoalG { get; set; }
+    public int? FiberGoalG { get; set; }
 }

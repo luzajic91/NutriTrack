@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NutriTrack.Shared.Persistence;
 
@@ -11,9 +12,11 @@ using NutriTrack.Shared.Persistence;
 namespace NutriTrack.Shared.Migrations
 {
     [DbContext(typeof(NutriTrackDbContext))]
-    partial class NutriTrackDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260728161427_AddFiberGoal")]
+    partial class AddFiberGoal
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -167,40 +170,6 @@ namespace NutriTrack.Shared.Migrations
                     b.ToTable("ServingUnits");
                 });
 
-            modelBuilder.Entity("NutriTrack.Domain.Identity.EmailConfirmationToken", b =>
-                {
-                    b.Property<int>("EmailConfirmationTokenId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("EmailConfirmationTokenId"));
-
-                    b.Property<DateTime?>("ConsumedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("ExpiresAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Token")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("int");
-
-                    b.HasKey("EmailConfirmationTokenId");
-
-                    b.HasIndex("Token");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("EmailConfirmationTokens", (string)null);
-                });
-
             modelBuilder.Entity("NutriTrack.Domain.Identity.RefreshToken", b =>
                 {
                     b.Property<int>("RefreshTokenId")
@@ -267,11 +236,6 @@ namespace NutriTrack.Shared.Migrations
                         .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("nvarchar(255)");
-
-                    b.Property<bool>("EmailConfirmed")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(false);
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()
@@ -482,17 +446,6 @@ namespace NutriTrack.Shared.Migrations
                     b.Navigation("ServingUnit");
                 });
 
-            modelBuilder.Entity("NutriTrack.Domain.Identity.EmailConfirmationToken", b =>
-                {
-                    b.HasOne("NutriTrack.Domain.Identity.User", "User")
-                        .WithMany("EmailConfirmationTokens")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("NutriTrack.Domain.Identity.RefreshToken", b =>
                 {
                     b.HasOne("NutriTrack.Domain.Identity.User", "User")
@@ -585,8 +538,6 @@ namespace NutriTrack.Shared.Migrations
 
             modelBuilder.Entity("NutriTrack.Domain.Identity.User", b =>
                 {
-                    b.Navigation("EmailConfirmationTokens");
-
                     b.Navigation("RefreshTokens");
                 });
 

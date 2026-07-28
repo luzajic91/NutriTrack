@@ -34,7 +34,8 @@ public class UserPreferencesService
                 CalorieGoal = prefs.CalorieGoal,
                 ProteinGoalG = prefs.ProteinGoalG,
                 CarbGoalG = prefs.CarbGoalG,
-                FatGoalG = prefs.FatGoalG
+                FatGoalG = prefs.FatGoalG,
+                FiberGoalG = prefs.FiberGoalG
             };
     }
 
@@ -56,6 +57,7 @@ public class UserPreferencesService
         prefs.ProteinGoalG = cmd.ProteinGoalG;
         prefs.CarbGoalG = cmd.CarbGoalG;
         prefs.FatGoalG = cmd.FatGoalG;
+        prefs.FiberGoalG = cmd.FiberGoalG;
 
         await _db.SaveChangesAsync(ct);
 

@@ -26,5 +26,9 @@ public class UpdateUserPreferencesValidator : AbstractValidator<UpdateUserPrefer
         RuleFor(x => x.FatGoalG)
             .GreaterThanOrEqualTo(0).WithMessage("Fat goal must be 0 or greater.")
             .When(x => x.FatGoalG.HasValue);
+
+        RuleFor(x => x.FiberGoalG)
+            .GreaterThanOrEqualTo(0).WithMessage("Fiber goal must be 0 or greater.")
+            .When(x => x.FiberGoalG.HasValue);
     }
 }
