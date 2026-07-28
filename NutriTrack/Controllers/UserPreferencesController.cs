@@ -1,4 +1,5 @@
 using NutriTrack.Shared.Features.UserPreferences;
+using NutriTrack.Domain.UserPreferences;
 
 namespace NutriTrack.Api.Controllers;
 
@@ -24,5 +25,16 @@ public class UserPreferencesController : ControllerBase
     {
         await _userPreferences.UpdateAsync(cmd, ct);
         return NoContent();
+    }
+
+    [HttpGet("history")]
+    public async Task<IActionResult> GetHistory(
+        [FromQuery] PreferenceMetric metric,
+        [FromQuery] DateOnly? from,
+        [FromQuery] DateOnly? to,
+        CancellationToken ct)
+    {
+        var result = await _userPreferences.GetHistoryAsync(metric, from, to, ct);
+        return Ok(result);
     }
 }

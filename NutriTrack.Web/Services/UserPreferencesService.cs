@@ -1,3 +1,4 @@
+using NutriTrack.Domain.UserPreferences;
 using NutriTrack.Shared.Models.UserPreferences;
 using NutriTrack.Shared.Services;
 
@@ -15,4 +16,13 @@ public class UserPreferencesService : IUserPreferencesService
 
     public Task UpdateCurrentUserPreferencesAsync(UserPreferencesDto request) =>
         _api.PutAsync("/api/user-preferences", request);
+
+    public Task<PreferenceHistoryDto> GetPreferenceHistoryAsync(
+        PreferenceMetric metric, DateOnly? from = null, DateOnly? to = null)
+    {
+        var uri = $"/api/user-preferences/history?metric={metric}";
+        if (from.HasValue) uri += $"&from={from.Value:yyyy-MM-dd}";
+        if (to.HasValue) uri += $"&to={to.Value:yyyy-MM-dd}";
+        return _api.GetAsync<PreferenceHistoryDto>(uri);
+    }
 }

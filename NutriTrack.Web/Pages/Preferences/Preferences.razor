@@ -1,7 +1,9 @@
 @page "/preferences"
 @attribute [Authorize]
 @inject IUserPreferencesService PreferencesService
+@inject IJSRuntime JS
 @using NutriTrack.Shared.Models.UserPreferences
+@using NutriTrack.Domain.UserPreferences
 
 <PageTitle>My Preferences - NutriTrack</PageTitle>
 
@@ -35,6 +37,32 @@
                                          OnSave="v => SaveAsync(p => p.FiberGoalG = AsGoal(v))" />
             </div>
         </div>
+
+        <div class="preferences-card">
+            <h2>Trends</h2>
+            <div class="form-group">
+                <label class="form-label" for="metricSelect">Metric</label>
+                <select id="metricSelect" class="form-control" @bind="_selectedMetric" @bind:after="ReloadHistoryAsync">
+                    @foreach (var option in MetricOptions)
+                    {
+                        <option value="@option.Metric">@option.Label</option>
+                    }
+                </select>
+            </div>
+
+            @if (_history is { Points.Count: > 0 })
+            {
+                <div class="chart-canvas-wrap">
+                    <canvas id="prefHistoryChart"></canvas>
+                </div>
+            }
+            else
+            {
+                <p class="nutrition-empty">
+                    No history yet for @MetricLabel(_selectedMetric). Change this value to start tracking it over time.
+                </p>
+            }
+        </div>
     </LoadingOrError>
 </div>
 
@@ -43,7 +71,61 @@
     private bool _isLoading = true;
     private string? _loadError;
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    private PreferenceMetric _selectedMetric = PreferenceMetric.WeightKg;
+    private PreferenceHistoryDto? _history;
+    private bool _historyNeedsRender;
+
+    private static readonly (PreferenceMetric Metric, string Label)[] MetricOptions =
+    {
+        (PreferenceMetric.WeightKg, "Weight (kg)"),
+        (PreferenceMetric.CalorieGoal, "Calorie goal (kcal)"),
+        (PreferenceMetric.ProteinGoalG, "Protein goal (g)"),
+        (PreferenceMetric.CarbGoalG, "Carb goal (g)"),
+        (PreferenceMetric.FatGoalG, "Fat goal (g)"),
+        (PreferenceMetric.FiberGoalG, "Fiber goal (g)"),
+    };
+
+    private static string MetricLabel(PreferenceMetric metric) =>
+        MetricOptions.FirstOrDefault(o => o.Metric == metric).Label ?? metric.ToString();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        await ReloadHistoryAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_historyNeedsRender)
+        {
+            _historyNeedsRender = false;
+            await RenderHistoryChartAsync();
+        }
+    }
+
+    private async Task ReloadHistoryAsync()
+    {
+        try
+        {
+            _history = await PreferencesService.GetPreferenceHistoryAsync(_selectedMetric);
+            _historyNeedsRender = _history.Points.Count > 0;
+        }
+        catch
+        {
+            _history = null;
+        }
+    }
+
+    private async Task RenderHistoryChartAsync()
+    {
+        if (_history is null || _history.Points.Count == 0) return;
+
+        var labels = _history.Points.Select(p => p.RecordedAt.ToLocalTime().ToString("MMM d")).ToArray();
+        var values = _history.Points.Select(p => (double)p.Value).ToArray();
+
+        await JS.InvokeVoidAsync("NutriCharts.renderLine",
+            "prefHistoryChart", labels, values, MetricLabel(_selectedMetric));
+    }
 
     private async Task LoadAsync()
     {
@@ -74,6 +156,7 @@
         {
             await PreferencesService.UpdateCurrentUserPreferencesAsync(candidate);
             _prefs = candidate;
+            await ReloadHistoryAsync();
             return null;
         }
         catch (Exception ex)
