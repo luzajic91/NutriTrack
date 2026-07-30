@@ -66,7 +66,9 @@ public class AuthService
         _db.Add(user);
         await _db.SaveChangesAsync(ct);
 
-        _logger.LogInformation("User {UserId} registered", user.UserId);
+        await SendConfirmationEmailAsync(user, ct);
+
+        _logger.LogInformation("User {UserId} registered; confirmation email sent", user.UserId);
         return user.UserId;
     }
 
