@@ -6,6 +6,16 @@
       "runtimeExecutable": "dotnet",
       "runtimeArgs": ["run", "--project", "NutriTrack.Web/NutriTrack.Web.csproj"],
       "port": 5107
+    },
+    {
+      "name": "NutriTrack API (rate limits on)",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": [
+        "run", "--project", "NutriTrack/NutriTrack.Api.csproj",
+        "--launch-profile", "http",
+        "--", "--RateLimiting:Enabled=true"
+      ],
+      "port": 5072
     }
   ]
 }

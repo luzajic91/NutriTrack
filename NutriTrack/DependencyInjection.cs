@@ -2,6 +2,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using NutriTrack.Api.RateLimiting;
 using NutriTrack.Shared.Auth;
 using NutriTrack.Shared.Email;
 using NutriTrack.Shared.Persistence;
@@ -66,6 +67,9 @@ public static class DependencyInjection
         // email
         services.Configure<EmailOptions>(configuration.GetSection(EmailOptions.SectionName));
         services.AddScoped<IEmailSender, SmtpEmailSender>();
+
+        // rate limiting (applied per-action on AuthController)
+        services.AddNutriTrackRateLimiting(configuration);
 
         // validators
         services.AddScoped<RegisterValidator>();
