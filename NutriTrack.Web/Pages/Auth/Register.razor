@@ -111,53 +111,21 @@
             // until the user clicks the confirmation link we just emailed them.
             _registrationSuccess = true;
         }
-        catch (Exception ex)
+        catch (ApiException ex)
         {
-            // Step 6: Registration failed - show error message
-            _errorMessage = ParseErrorMessage(ex.Message);
+            // Step 6: Registration failed. The server's validation messages are already
+            // user-facing (e.g. "Email is already in use."), so show them as-is rather than
+            // guessing at their content.
+            _errorMessage = ex.Message;
+        }
+        catch (Exception)
+        {
+            _errorMessage = "We couldn't reach the server. Please try again.";
         }
         finally
         {
             // Step 7: Always clear loading state
             _isLoading = false;
-        }
-    }
-
-    /// <summary>
-    /// Parse error message from API response.
-    /// </summary>
-    private string ParseErrorMessage(string errorMessage)
-    {
-        try
-        {
-            // Check if error contains JSON
-            if (errorMessage.Contains("{\"error\""))
-            {
-                var startIndex = errorMessage.IndexOf("{\"error\"");
-                var jsonPart = errorMessage.Substring(startIndex);
-
-                var doc = System.Text.Json.JsonDocument.Parse(jsonPart);
-                if (doc.RootElement.TryGetProperty("error", out var errorProp))
-                {
-                    return errorProp.GetString() ?? "Registration failed. Please try again.";
-                }
-            }
-
-            // Check for common errors
-            if (errorMessage.Contains("Email is already in use"))
-                return "This email is already registered. Please login instead.";
-
-            if (errorMessage.Contains("email"))
-                return "Please provide a valid email address.";
-
-            if (errorMessage.Contains("password"))
-                return "Password must be at least 6 characters long.";
-
-            return "Registration failed. Please try again.";
-        }
-        catch
-        {
-            return "Registration failed. Please try again.";
         }
     }
 }

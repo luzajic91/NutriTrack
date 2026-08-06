@@ -43,7 +43,7 @@ public class ApiClient : IApiClient
         HttpMethod method, string uri, object? body, CancellationToken ct)
     {
         var token = await _auth.GetAccessTokenAsync()
-            ?? throw new ApiException(401, "You are not signed in.");
+            ?? throw new ApiException(401, "You are not signed in.", "auth.token_invalid");
 
         // Set the token per-request (reliable in Blazor WebAssembly). The request is
         // intentionally not disposed before the caller reads the response body.
@@ -62,15 +62,15 @@ public class ApiClient : IApiClient
         var correlationId = response.Headers.TryGetValues(CorrelationIdHeader, out var ids)
             ? string.Join(',', ids)
             : null;
-        var error = await response.Content.ReadAsStringAsync(ct);
+
+        var exception = await response.ToApiExceptionAsync(
+            response.ReasonPhrase ?? "Request failed.", ct);
 
         _logger.LogWarning(
-            "API request {Method} {Uri} failed: {StatusCode} (correlationId={CorrelationId})",
-            method, uri, (int)response.StatusCode, correlationId);
+            "API request {Method} {Uri} failed: {StatusCode} {Code} (correlationId={CorrelationId})",
+            method, uri, exception.StatusCode, exception.Code, correlationId);
 
-        throw new ApiException(
-            (int)response.StatusCode,
-            string.IsNullOrWhiteSpace(error) ? response.ReasonPhrase ?? "Request failed." : error);
+        throw exception;
     }
 
     private static async Task<T> ReadAsync<T>(HttpResponseMessage response, CancellationToken ct) =>

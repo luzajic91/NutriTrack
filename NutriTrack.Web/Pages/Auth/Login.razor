@@ -124,57 +124,26 @@
                 Navigation.NavigateTo("/");
             }
         }
-        catch (Exception ex)
+        catch (ApiException ex)
         {
-            // Step 5: Login failed - show error message
-            _errorMessage = ParseErrorMessage(ex.Message);
+            // Step 5: Login failed - show error message. Branch on the server's error code,
+            // never on the message text, which is display copy and may be reworded.
+            _errorMessage = ex.Code switch
+            {
+                "auth.invalid_credentials" => "Invalid email or password.",
+                "auth.email_not_confirmed" =>
+                    "Please confirm your email before logging in. Check your inbox for the link.",
+                _ => ex.Message
+            };
+        }
+        catch (Exception)
+        {
+            _errorMessage = "We couldn't reach the server. Please try again.";
         }
         finally
         {
             // Step 6: Always clear loading state
             _isLoading = false;
-        }
-    }
-
-    /// <summary>
-    /// Parse error message from API response.
-    /// Makes error messages user-friendly.
-    /// </summary>
-    private string ParseErrorMessage(string errorMessage)
-    {
-        // API returns errors like: "Login failed: {\"error\":\"Invalid email or password.\"}"
-        // We want to extract just: "Invalid email or password."
-
-        try
-        {
-            // Check if error contains JSON
-            if (errorMessage.Contains("{\"error\""))
-            {
-                var startIndex = errorMessage.IndexOf("{\"error\"");
-                var jsonPart = errorMessage.Substring(startIndex);
-
-                // Parse JSON
-                var doc = System.Text.Json.JsonDocument.Parse(jsonPart);
-                if (doc.RootElement.TryGetProperty("error", out var errorProp))
-                {
-                    return errorProp.GetString() ?? "Login failed. Please try again.";
-                }
-            }
-
-            // If not JSON, check for common error messages
-            if (errorMessage.Contains("Invalid email or password"))
-                return "Invalid email or password.";
-
-            if (errorMessage.Contains("Email is already in use"))
-                return "Email is already in use.";
-
-            // Default error message
-            return "Login failed. Please check your credentials and try again.";
-        }
-        catch
-        {
-            // If parsing fails, return generic message
-            return "Login failed. Please try again.";
         }
     }
 }

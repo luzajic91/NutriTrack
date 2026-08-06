@@ -27,13 +27,14 @@ public class ExceptionHandlingMiddleware
 
     private async Task HandleExceptionAsync(HttpContext context, Exception ex)
     {
-        var (statusCode, message) = ex switch
+        var (statusCode, message, code) = ex switch
         {
-            NotFoundException e => (StatusCodes.Status404NotFound, e.Message),
-            ForbiddenException e => (StatusCodes.Status403Forbidden, e.Message),
+            NotFoundException e => (StatusCodes.Status404NotFound, e.Message, "error.not_found"),
+            ForbiddenException e => (StatusCodes.Status403Forbidden, e.Message, "error.forbidden"),
             FluentValidation.ValidationException e => (StatusCodes.Status400BadRequest,
-                string.Join(", ", e.Errors.Select(x => x.ErrorMessage))),
-            _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred.")
+                string.Join(", ", e.Errors.Select(x => x.ErrorMessage)), "error.validation"),
+            _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred.",
+                "error.unexpected")
         };
 
         // Expected client errors (4xx) are logged at Warning without a stack trace;
@@ -45,14 +46,6 @@ public class ExceptionHandlingMiddleware
             _logger.LogWarning("{StatusCode} for {Method} {Path}: {Message}",
                 statusCode, context.Request.Method, context.Request.Path, message);
 
-        context.Response.ContentType = "application/json";
-        context.Response.StatusCode = statusCode;
-
-        var body = System.Text.Json.JsonSerializer.Serialize(new
-        {
-            error = message,
-            correlationId = context.GetCorrelationId()
-        });
-        await context.Response.WriteAsync(body);
+        await context.Response.WriteErrorAsync(statusCode, message, code);
     }
 }

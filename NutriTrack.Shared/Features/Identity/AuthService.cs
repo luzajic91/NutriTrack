@@ -8,6 +8,16 @@ public class AuthService
     private const int RefreshTokenLifetimeDays = 7;
     private const int EmailConfirmationLifetimeHours = 24;
 
+    /// <summary>
+    /// Verified against when no user matches, so an unknown email costs the same as a known one.
+    /// Generated rather than hardcoded so it always carries the same work factor as stored
+    /// hashes; the one-off cost is paid on first use, not at startup.
+    /// </summary>
+    private static readonly Lazy<string> DummyPasswordHashFactory =
+        new(() => BCrypt.Net.BCrypt.HashPassword("not-a-real-password"));
+
+    private static string DummyPasswordHash => DummyPasswordHashFactory.Value;
+
     private readonly NutriTrackDbContext _db;
     private readonly JwtTokenService _jwt;
     private readonly IEmailSender _emailSender;
@@ -119,7 +129,7 @@ public class AuthService
         await _emailSender.SendAsync(user.Email, "Confirm your NutriTrack account", body, ct);
     }
 
-    public async Task<AuthTokensDto> Login(LoginRequest cmd, CancellationToken ct)
+    public async Task<Result<AuthTokensDto>> Login(LoginRequest cmd, CancellationToken ct)
     {
         _loginValidator.ValidateAndThrow(cmd);
 
@@ -127,20 +137,25 @@ public class AuthService
             .Include(u => u.Role)
             .FirstOrDefaultAsync(u => u.Email == cmd.Email, ct);
 
+        // Always run a verify, even with no user, so the response time does not reveal whether
+        // the email is registered. Short-circuiting here would leak that in ~100ms of BCrypt.
+        var passwordValid = BCrypt.Net.BCrypt.Verify(
+            cmd.Password, user?.PasswordHash ?? DummyPasswordHash);
+
         if (user is null)
         {
             _logger.LogWarning("Failed login attempt for {Email} (no such user)", cmd.Email);
-            throw new NotFoundException("Invalid email or password.");
+            return AuthErrors.InvalidCredentials;
         }
 
-        if (!BCrypt.Net.BCrypt.Verify(cmd.Password, user.PasswordHash))
+        if (!passwordValid)
         {
             _logger.LogWarning("Failed login attempt for user {UserId} (bad password)", user.UserId);
-            throw new NotFoundException("Invalid email or password.");
+            return AuthErrors.InvalidCredentials;
         }
 
         if (!user.EmailConfirmed)
-            throw new ForbiddenException("Please confirm your email before logging in.");
+            return AuthErrors.EmailNotConfirmed;
 
         var accessToken = _jwt.GenerateAccessToken(user.UserId, user.Role.Name);
         var refreshToken = _jwt.GenerateRefreshToken();
@@ -159,22 +174,29 @@ public class AuthService
         return new AuthTokensDto { AccessToken = accessToken, RefreshToken = refreshToken };
     }
 
-    public async Task<AuthTokensDto> RefreshToken(RefreshTokenRequest cmd, CancellationToken ct)
+    public async Task<Result<AuthTokensDto>> RefreshToken(RefreshTokenRequest cmd, CancellationToken ct)
     {
         _refreshTokenValidator.ValidateAndThrow(cmd);
 
         var existing = await _db.RefreshTokens
             .Include(r => r.User)
             .ThenInclude(u => u.Role)
-            .FirstOrDefaultAsync(r => r.Token == cmd.RefreshToken, ct)
-            ?? throw new NotFoundException("Refresh token not found.");
+            .FirstOrDefaultAsync(r => r.Token == cmd.RefreshToken, ct);
+
+        if (existing is null)
+        {
+            _logger.LogWarning(
+                "Refresh attempted with unknown token {Token}",
+                LogMasking.Mask(cmd.RefreshToken));
+            return AuthErrors.RefreshTokenInvalid;
+        }
 
         if (!existing.IsActive)
         {
             _logger.LogWarning(
                 "Refresh attempted with inactive token {Token} for user {UserId}",
                 LogMasking.Mask(existing.Token), existing.UserId);
-            throw new ForbiddenException("Refresh token is no longer active.");
+            return AuthErrors.RefreshTokenInvalid;
         }
 
         var newAccessToken = _jwt.GenerateAccessToken(
@@ -198,20 +220,25 @@ public class AuthService
         return new AuthTokensDto { AccessToken = newAccessToken, RefreshToken = newRefreshToken };
     }
 
-    public async Task RevokeToken(RevokeTokenRequest cmd, CancellationToken ct)
+    public async Task<Result> RevokeToken(RevokeTokenRequest cmd, CancellationToken ct)
     {
         _revokeTokenValidator.ValidateAndThrow(cmd);
 
         var token = await _db.RefreshTokens
-            .FirstOrDefaultAsync(r => r.Token == cmd.RefreshToken, ct)
-            ?? throw new NotFoundException("Refresh token not found.");
+            .FirstOrDefaultAsync(r => r.Token == cmd.RefreshToken, ct);
 
-        if (!token.IsActive)
-            throw new ForbiddenException("Refresh token is already inactive.");
+        if (token is null || !token.IsActive)
+        {
+            _logger.LogWarning(
+                "Revoke attempted with unknown or inactive token {Token}",
+                LogMasking.Mask(cmd.RefreshToken));
+            return AuthErrors.RefreshTokenInvalid;
+        }
 
         token.RevokedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("Refresh token revoked for user {UserId}", token.UserId);
+        return Result.Success();
     }
 }

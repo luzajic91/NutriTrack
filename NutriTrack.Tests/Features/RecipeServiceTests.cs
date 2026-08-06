@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using NutriTrack.Shared.Features.Recipes;
+using NutriTrack.Shared.Models.Recipes;
 
 namespace NutriTrack.Tests.Features;
 
@@ -18,8 +19,11 @@ public class RecipeServiceTests
 
         var service = CreateService(db, TestHelpers.CreateUser());
         var id = await service.CreateRecipe(
-            new CreateRecipeCommand("Bowl", null, null, false,
-                [new RecipeItemRequest(1, 200), new RecipeItemRequest(2, 300)]),
+            new CreateRecipeRequest
+            {
+                Name = "Bowl",
+                Items = [new RecipeItemRequest(1, 200), new RecipeItemRequest(2, 300)]
+            },
             CancellationToken.None);
 
         var recipe = db.Recipes.Single(r => r.RecipeId == id);
@@ -33,7 +37,11 @@ public class RecipeServiceTests
 
         var service = CreateService(db, TestHelpers.CreateUser());
         var act = async () => await service.CreateRecipe(
-            new CreateRecipeCommand("Bowl", null, null, false, [new RecipeItemRequest(99, 100)]),
+            new CreateRecipeRequest
+            {
+                Name = "Bowl",
+                Items = [new RecipeItemRequest(99, 100)]
+            },
             CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>().WithMessage("*Food 99 not found*");
