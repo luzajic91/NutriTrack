@@ -8,6 +8,16 @@ public class AuthService
     private const int RefreshTokenLifetimeDays = 7;
     private const int EmailConfirmationLifetimeHours = 24;
 
+    /// <summary>
+    /// Verified against when no user matches, so an unknown email costs the same as a known one.
+    /// Generated rather than hardcoded so it always carries the same work factor as stored
+    /// hashes; the one-off cost is paid on first use, not at startup.
+    /// </summary>
+    private static readonly Lazy<string> DummyPasswordHashFactory =
+        new(() => BCrypt.Net.BCrypt.HashPassword("not-a-real-password"));
+
+    private static string DummyPasswordHash => DummyPasswordHashFactory.Value;
+
     private readonly NutriTrackDbContext _db;
     private readonly JwtTokenService _jwt;
     private readonly IEmailSender _emailSender;
@@ -18,6 +28,7 @@ public class AuthService
     private readonly RefreshTokenValidator _refreshTokenValidator;
     private readonly RevokeTokenValidator _revokeTokenValidator;
     private readonly ConfirmEmailValidator _confirmEmailValidator;
+    private readonly ResendConfirmationValidator _resendConfirmationValidator;
 
     public AuthService(
         NutriTrackDbContext db,
@@ -29,7 +40,8 @@ public class AuthService
         LoginValidator loginValidator,
         RefreshTokenValidator refreshTokenValidator,
         RevokeTokenValidator revokeTokenValidator,
-        ConfirmEmailValidator confirmEmailValidator)
+        ConfirmEmailValidator confirmEmailValidator,
+        ResendConfirmationValidator resendConfirmationValidator)
     {
         _db = db;
         _jwt = jwt;
@@ -41,6 +53,7 @@ public class AuthService
         _refreshTokenValidator = refreshTokenValidator;
         _revokeTokenValidator = revokeTokenValidator;
         _confirmEmailValidator = confirmEmailValidator;
+        _resendConfirmationValidator = resendConfirmationValidator;
     }
 
     public async Task<int> Register(RegisterRequest cmd, CancellationToken ct)
@@ -66,10 +79,48 @@ public class AuthService
         _db.Add(user);
         await _db.SaveChangesAsync(ct);
 
-        await SendConfirmationEmailAsync(user, ct);
+        var rawToken = await IssueConfirmationTokenAsync(user, ct);
 
-        _logger.LogInformation("User {UserId} registered; confirmation email sent", user.UserId);
+        // Delivery is best-effort. The account row is already committed, so letting a
+        // mail outage bubble up would leave an unconfirmable account that also cannot
+        // be registered again. The token is persisted either way and the address owner
+        // can ask for a fresh mail via ResendConfirmationEmail.
+        var delivered = await TrySendConfirmationEmailAsync(user, rawToken, ct);
+
+        _logger.LogInformation(
+            "User {UserId} registered; confirmation email {DeliveryOutcome}",
+            user.UserId, delivered ? "sent" : "not delivered");
         return user.UserId;
+    }
+
+    public async Task ResendConfirmationEmail(ResendConfirmationRequest cmd, CancellationToken ct)
+    {
+        _resendConfirmationValidator.ValidateAndThrow(cmd);
+
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == cmd.Email, ct);
+
+        // Unknown and already-confirmed addresses are a silent no-op: answering them
+        // differently would turn this endpoint into an account-enumeration oracle.
+        if (user is null || user.EmailConfirmed)
+        {
+            _logger.LogInformation("Confirmation resend requested for an address that needs no mail");
+            return;
+        }
+
+        // Retire outstanding links so only the newest one works.
+        var outstanding = await _db.EmailConfirmationTokens
+            .Where(t => t.UserId == user.UserId && t.ConsumedAt == null)
+            .ToListAsync(ct);
+        foreach (var token in outstanding)
+            token.ConsumedAt = DateTime.UtcNow;
+
+        var rawToken = await IssueConfirmationTokenAsync(user, ct);
+
+        // This is itself the retry path, so a delivery failure is reported rather than
+        // swallowed — the caller needs to know the mail did not go out.
+        await SendConfirmationEmailAsync(user, rawToken, ct);
+
+        _logger.LogInformation("Confirmation email resent for user {UserId}", user.UserId);
     }
 
     public async Task ConfirmEmail(ConfirmEmailRequest cmd, CancellationToken ct)
@@ -91,7 +142,8 @@ public class AuthService
         _logger.LogInformation("Email confirmed for user {UserId}", token.UserId);
     }
 
-    private async Task SendConfirmationEmailAsync(User user, CancellationToken ct)
+    /// <summary>Persists a fresh confirmation token and returns its raw value.</summary>
+    private async Task<string> IssueConfirmationTokenAsync(User user, CancellationToken ct)
     {
         // Hex is URL-safe, so the raw token drops straight into the query string.
         var rawToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
@@ -105,6 +157,28 @@ public class AuthService
         });
         await _db.SaveChangesAsync(ct);
 
+        return rawToken;
+    }
+
+    /// <summary>Sends the confirmation mail, reporting failure instead of throwing.</summary>
+    private async Task<bool> TrySendConfirmationEmailAsync(User user, string rawToken, CancellationToken ct)
+    {
+        try
+        {
+            await SendConfirmationEmailAsync(user, rawToken, ct);
+            return true;
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            _logger.LogError(ex,
+                "Could not deliver the confirmation email for user {UserId}; " +
+                "they can request a new one via resend-confirmation", user.UserId);
+            return false;
+        }
+    }
+
+    private async Task SendConfirmationEmailAsync(User user, string rawToken, CancellationToken ct)
+    {
         var clientBaseUrl = (_configuration["App:ClientBaseUrl"] ?? string.Empty).TrimEnd('/');
         var link = $"{clientBaseUrl}/confirm-email?token={rawToken}";
 
@@ -119,7 +193,7 @@ public class AuthService
         await _emailSender.SendAsync(user.Email, "Confirm your NutriTrack account", body, ct);
     }
 
-    public async Task<AuthTokensDto> Login(LoginRequest cmd, CancellationToken ct)
+    public async Task<Result<AuthTokensDto>> Login(LoginRequest cmd, CancellationToken ct)
     {
         _loginValidator.ValidateAndThrow(cmd);
 
@@ -127,20 +201,25 @@ public class AuthService
             .Include(u => u.Role)
             .FirstOrDefaultAsync(u => u.Email == cmd.Email, ct);
 
+        // Always run a verify, even with no user, so the response time does not reveal whether
+        // the email is registered. Short-circuiting here would leak that in ~100ms of BCrypt.
+        var passwordValid = BCrypt.Net.BCrypt.Verify(
+            cmd.Password, user?.PasswordHash ?? DummyPasswordHash);
+
         if (user is null)
         {
             _logger.LogWarning("Failed login attempt for {Email} (no such user)", cmd.Email);
-            throw new NotFoundException("Invalid email or password.");
+            return AuthErrors.InvalidCredentials;
         }
 
-        if (!BCrypt.Net.BCrypt.Verify(cmd.Password, user.PasswordHash))
+        if (!passwordValid)
         {
             _logger.LogWarning("Failed login attempt for user {UserId} (bad password)", user.UserId);
-            throw new NotFoundException("Invalid email or password.");
+            return AuthErrors.InvalidCredentials;
         }
 
         if (!user.EmailConfirmed)
-            throw new ForbiddenException("Please confirm your email before logging in.");
+            return AuthErrors.EmailNotConfirmed;
 
         var accessToken = _jwt.GenerateAccessToken(user.UserId, user.Role.Name);
         var refreshToken = _jwt.GenerateRefreshToken();
@@ -159,22 +238,29 @@ public class AuthService
         return new AuthTokensDto { AccessToken = accessToken, RefreshToken = refreshToken };
     }
 
-    public async Task<AuthTokensDto> RefreshToken(RefreshTokenRequest cmd, CancellationToken ct)
+    public async Task<Result<AuthTokensDto>> RefreshToken(RefreshTokenRequest cmd, CancellationToken ct)
     {
         _refreshTokenValidator.ValidateAndThrow(cmd);
 
         var existing = await _db.RefreshTokens
             .Include(r => r.User)
             .ThenInclude(u => u.Role)
-            .FirstOrDefaultAsync(r => r.Token == cmd.RefreshToken, ct)
-            ?? throw new NotFoundException("Refresh token not found.");
+            .FirstOrDefaultAsync(r => r.Token == cmd.RefreshToken, ct);
+
+        if (existing is null)
+        {
+            _logger.LogWarning(
+                "Refresh attempted with unknown token {Token}",
+                LogMasking.Mask(cmd.RefreshToken));
+            return AuthErrors.RefreshTokenInvalid;
+        }
 
         if (!existing.IsActive)
         {
             _logger.LogWarning(
                 "Refresh attempted with inactive token {Token} for user {UserId}",
                 LogMasking.Mask(existing.Token), existing.UserId);
-            throw new ForbiddenException("Refresh token is no longer active.");
+            return AuthErrors.RefreshTokenInvalid;
         }
 
         var newAccessToken = _jwt.GenerateAccessToken(
@@ -198,20 +284,25 @@ public class AuthService
         return new AuthTokensDto { AccessToken = newAccessToken, RefreshToken = newRefreshToken };
     }
 
-    public async Task RevokeToken(RevokeTokenRequest cmd, CancellationToken ct)
+    public async Task<Result> RevokeToken(RevokeTokenRequest cmd, CancellationToken ct)
     {
         _revokeTokenValidator.ValidateAndThrow(cmd);
 
         var token = await _db.RefreshTokens
-            .FirstOrDefaultAsync(r => r.Token == cmd.RefreshToken, ct)
-            ?? throw new NotFoundException("Refresh token not found.");
+            .FirstOrDefaultAsync(r => r.Token == cmd.RefreshToken, ct);
 
-        if (!token.IsActive)
-            throw new ForbiddenException("Refresh token is already inactive.");
+        if (token is null || !token.IsActive)
+        {
+            _logger.LogWarning(
+                "Revoke attempted with unknown or inactive token {Token}",
+                LogMasking.Mask(cmd.RefreshToken));
+            return AuthErrors.RefreshTokenInvalid;
+        }
 
         token.RevokedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("Refresh token revoked for user {UserId}", token.UserId);
+        return Result.Success();
     }
 }

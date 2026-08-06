@@ -34,6 +34,26 @@ public static class DependencyInjection
                     IssuerSigningKey = new SymmetricSecurityKey(
                         Encoding.UTF8.GetBytes(jwtSecret))
                 };
+
+                // ExceptionHandlingMiddleware is registered before UseAuthentication, so it
+                // never sees these. Without this the framework returns an empty body and the
+                // client has no code to act on.
+                options.Events = new JwtBearerEvents
+                {
+                    OnChallenge = async ctx =>
+                    {
+                        ctx.HandleResponse();
+                        await ctx.Response.WriteErrorAsync(
+                            StatusCodes.Status401Unauthorized,
+                            "Your session has expired. Please sign in again.",
+                            "auth.token_invalid");
+                    },
+                    OnForbidden = async ctx =>
+                        await ctx.Response.WriteErrorAsync(
+                            StatusCodes.Status403Forbidden,
+                            "You do not have permission to perform this action.",
+                            "auth.forbidden")
+                };
             });
 
         services.AddHttpContextAccessor();
@@ -53,6 +73,7 @@ public static class DependencyInjection
         services.AddScoped<RefreshTokenValidator>();
         services.AddScoped<RevokeTokenValidator>();
         services.AddScoped<ConfirmEmailValidator>();
+        services.AddScoped<ResendConfirmationValidator>();
         services.AddScoped<LogMealValidator>();
         services.AddScoped<CreateRecipeValidator>();
         services.AddScoped<UpdateUserPreferencesValidator>();

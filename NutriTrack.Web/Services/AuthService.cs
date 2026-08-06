@@ -44,13 +44,11 @@ public class AuthService : IAuthService
         var response = await _http.PostAsJsonAsync("/api/auth/login", request);
 
         if (!response.IsSuccessStatusCode)
-        {
-            var errorContent = await response.Content.ReadAsStringAsync();
-            throw new Exception($"Login failed: {errorContent}");
-        }
+            throw await response.ToApiExceptionAsync("Login failed. Please try again.");
 
         var result = await response.Content.ReadFromJsonAsync<AuthTokensDto>()
-            ?? throw new Exception("Failed to parse login response");
+            ?? throw new ApiException(
+                (int)response.StatusCode, "The server returned an empty login response.");
 
         await _localStorage.SetItemAsync(AccessTokenKey, result.AccessToken);
         await _localStorage.SetItemAsync(RefreshTokenKey, result.RefreshToken);
@@ -69,10 +67,7 @@ public class AuthService : IAuthService
         var response = await _http.PostAsJsonAsync("/api/auth/register", request);
 
         if (!response.IsSuccessStatusCode)
-        {
-            var errorContent = await response.Content.ReadAsStringAsync();
-            throw new Exception($"Registration failed: {errorContent}");
-        }
+            throw await response.ToApiExceptionAsync("Registration failed. Please try again.");
     }
 
     public async Task ConfirmEmailAsync(string token)
@@ -80,10 +75,8 @@ public class AuthService : IAuthService
         var response = await _http.PostAsJsonAsync("/api/auth/confirm-email", new { token });
 
         if (!response.IsSuccessStatusCode)
-        {
-            var errorContent = await response.Content.ReadAsStringAsync();
-            throw new Exception($"Confirmation failed: {errorContent}");
-        }
+            throw await response.ToApiExceptionAsync(
+                "Email confirmation failed. Please try again.");
     }
 
     public async Task LogoutAsync()
@@ -147,15 +140,28 @@ public class AuthService : IAuthService
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    await LogoutAsync();
-                    return null;
+                    // Only a 401 means the refresh token itself is dead. A 5xx or a gateway
+                    // hiccup is transient — tearing down the session over one would sign the
+                    // user out for no reason. The access token is still valid for up to a
+                    // minute, so hand it back and let the next call retry the refresh.
+                    if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                    {
+                        _logger.LogInformation("Refresh token rejected; logging out");
+                        await LogoutAsync();
+                        return null;
+                    }
+
+                    _logger.LogWarning(
+                        "Token refresh failed with {StatusCode}; keeping the session",
+                        (int)response.StatusCode);
+                    return accessToken;
                 }
 
                 var result = await response.Content.ReadFromJsonAsync<AuthTokensDto>();
                 if (result == null)
                 {
-                    await LogoutAsync();
-                    return null;
+                    _logger.LogWarning("Token refresh returned an empty body; keeping the session");
+                    return accessToken;
                 }
 
                 await _localStorage.SetItemAsync(AccessTokenKey, result.AccessToken);
@@ -167,9 +173,9 @@ public class AuthService : IAuthService
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Token refresh failed; logging out");
-                await LogoutAsync();
-                return null;
+                // Transport failure (offline, DNS, CORS). Same reasoning as a 5xx above.
+                _logger.LogWarning(ex, "Token refresh could not reach the server; keeping the session");
+                return accessToken;
             }
         }
 

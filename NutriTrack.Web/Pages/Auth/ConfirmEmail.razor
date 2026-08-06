@@ -53,30 +53,15 @@
             await AuthService.ConfirmEmailAsync(Token);
             _state = State.Success;
         }
-        catch (Exception ex)
+        catch (ApiException ex)
         {
             _state = State.Error;
-            _errorMessage = ParseErrorMessage(ex.Message);
+            _errorMessage = ex.Message;
         }
-    }
-
-    private static string ParseErrorMessage(string errorMessage)
-    {
-        try
+        catch (Exception)
         {
-            if (errorMessage.Contains("{\"error\""))
-            {
-                var jsonPart = errorMessage[errorMessage.IndexOf("{\"error\"")..];
-                var doc = System.Text.Json.JsonDocument.Parse(jsonPart);
-                if (doc.RootElement.TryGetProperty("error", out var errorProp))
-                    return errorProp.GetString() ?? "We couldn't confirm your email.";
-            }
+            _state = State.Error;
+            _errorMessage = "We couldn't reach the server. Please try again.";
         }
-        catch
-        {
-            // fall through to the generic message
-        }
-
-        return "This confirmation link is invalid, expired, or already used.";
     }
 }
