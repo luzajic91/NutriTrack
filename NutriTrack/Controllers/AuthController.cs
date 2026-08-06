@@ -22,6 +22,15 @@ public class AuthController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("resend-confirmation")]
+    public async Task<IActionResult> ResendConfirmation(ResendConfirmationRequest cmd, CancellationToken ct)
+    {
+        // Always 202, whether or not that address actually has a pending confirmation:
+        // the response must not reveal which emails are registered.
+        await _auth.ResendConfirmationEmail(cmd, ct);
+        return Accepted();
+    }
+
     [HttpPost("login")]
     public async Task<IActionResult> Login(LoginRequest cmd, CancellationToken ct)
     {

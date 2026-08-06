@@ -73,6 +73,7 @@ public static class DependencyInjection
         services.AddScoped<RefreshTokenValidator>();
         services.AddScoped<RevokeTokenValidator>();
         services.AddScoped<ConfirmEmailValidator>();
+        services.AddScoped<ResendConfirmationValidator>();
         services.AddScoped<LogMealValidator>();
         services.AddScoped<CreateRecipeValidator>();
         services.AddScoped<UpdateUserPreferencesValidator>();

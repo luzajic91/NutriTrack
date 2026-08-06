@@ -28,6 +28,7 @@ public class AuthService
     private readonly RefreshTokenValidator _refreshTokenValidator;
     private readonly RevokeTokenValidator _revokeTokenValidator;
     private readonly ConfirmEmailValidator _confirmEmailValidator;
+    private readonly ResendConfirmationValidator _resendConfirmationValidator;
 
     public AuthService(
         NutriTrackDbContext db,
@@ -39,7 +40,8 @@ public class AuthService
         LoginValidator loginValidator,
         RefreshTokenValidator refreshTokenValidator,
         RevokeTokenValidator revokeTokenValidator,
-        ConfirmEmailValidator confirmEmailValidator)
+        ConfirmEmailValidator confirmEmailValidator,
+        ResendConfirmationValidator resendConfirmationValidator)
     {
         _db = db;
         _jwt = jwt;
@@ -51,6 +53,7 @@ public class AuthService
         _refreshTokenValidator = refreshTokenValidator;
         _revokeTokenValidator = revokeTokenValidator;
         _confirmEmailValidator = confirmEmailValidator;
+        _resendConfirmationValidator = resendConfirmationValidator;
     }
 
     public async Task<int> Register(RegisterRequest cmd, CancellationToken ct)
@@ -76,10 +79,48 @@ public class AuthService
         _db.Add(user);
         await _db.SaveChangesAsync(ct);
 
-        await SendConfirmationEmailAsync(user, ct);
+        var rawToken = await IssueConfirmationTokenAsync(user, ct);
 
-        _logger.LogInformation("User {UserId} registered; confirmation email sent", user.UserId);
+        // Delivery is best-effort. The account row is already committed, so letting a
+        // mail outage bubble up would leave an unconfirmable account that also cannot
+        // be registered again. The token is persisted either way and the address owner
+        // can ask for a fresh mail via ResendConfirmationEmail.
+        var delivered = await TrySendConfirmationEmailAsync(user, rawToken, ct);
+
+        _logger.LogInformation(
+            "User {UserId} registered; confirmation email {DeliveryOutcome}",
+            user.UserId, delivered ? "sent" : "not delivered");
         return user.UserId;
+    }
+
+    public async Task ResendConfirmationEmail(ResendConfirmationRequest cmd, CancellationToken ct)
+    {
+        _resendConfirmationValidator.ValidateAndThrow(cmd);
+
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == cmd.Email, ct);
+
+        // Unknown and already-confirmed addresses are a silent no-op: answering them
+        // differently would turn this endpoint into an account-enumeration oracle.
+        if (user is null || user.EmailConfirmed)
+        {
+            _logger.LogInformation("Confirmation resend requested for an address that needs no mail");
+            return;
+        }
+
+        // Retire outstanding links so only the newest one works.
+        var outstanding = await _db.EmailConfirmationTokens
+            .Where(t => t.UserId == user.UserId && t.ConsumedAt == null)
+            .ToListAsync(ct);
+        foreach (var token in outstanding)
+            token.ConsumedAt = DateTime.UtcNow;
+
+        var rawToken = await IssueConfirmationTokenAsync(user, ct);
+
+        // This is itself the retry path, so a delivery failure is reported rather than
+        // swallowed — the caller needs to know the mail did not go out.
+        await SendConfirmationEmailAsync(user, rawToken, ct);
+
+        _logger.LogInformation("Confirmation email resent for user {UserId}", user.UserId);
     }
 
     public async Task ConfirmEmail(ConfirmEmailRequest cmd, CancellationToken ct)
@@ -101,7 +142,8 @@ public class AuthService
         _logger.LogInformation("Email confirmed for user {UserId}", token.UserId);
     }
 
-    private async Task SendConfirmationEmailAsync(User user, CancellationToken ct)
+    /// <summary>Persists a fresh confirmation token and returns its raw value.</summary>
+    private async Task<string> IssueConfirmationTokenAsync(User user, CancellationToken ct)
     {
         // Hex is URL-safe, so the raw token drops straight into the query string.
         var rawToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
@@ -115,6 +157,28 @@ public class AuthService
         });
         await _db.SaveChangesAsync(ct);
 
+        return rawToken;
+    }
+
+    /// <summary>Sends the confirmation mail, reporting failure instead of throwing.</summary>
+    private async Task<bool> TrySendConfirmationEmailAsync(User user, string rawToken, CancellationToken ct)
+    {
+        try
+        {
+            await SendConfirmationEmailAsync(user, rawToken, ct);
+            return true;
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            _logger.LogError(ex,
+                "Could not deliver the confirmation email for user {UserId}; " +
+                "they can request a new one via resend-confirmation", user.UserId);
+            return false;
+        }
+    }
+
+    private async Task SendConfirmationEmailAsync(User user, string rawToken, CancellationToken ct)
+    {
         var clientBaseUrl = (_configuration["App:ClientBaseUrl"] ?? string.Empty).TrimEnd('/');
         var link = $"{clientBaseUrl}/confirm-email?token={rawToken}";
 
