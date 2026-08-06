@@ -365,3 +365,4 @@ FodyWeavers.xsd
 
 # Serilog rolling log files
 logs/
+/.claude/settings.local.json
