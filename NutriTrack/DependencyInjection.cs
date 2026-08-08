@@ -64,9 +64,23 @@ public static class DependencyInjection
         services.AddScoped<CurrentUserService>();
         services.AddScoped<NutritionQueryService>();
 
-        // email
-        services.Configure<EmailOptions>(configuration.GetSection(EmailOptions.SectionName));
+        // email. Validated on start because registration swallows delivery failures by
+        // design, so a misconfigured sender is otherwise invisible until someone reads
+        // the log. A merge once dropped these sections and nothing complained for weeks.
+        services.AddOptions<EmailOptions>()
+            .Bind(configuration.GetSection(EmailOptions.SectionName))
+            .Validate(o => !string.IsNullOrWhiteSpace(o.Host), "Email:Host is not configured.")
+            .Validate(o => !string.IsNullOrWhiteSpace(o.FromAddress),
+                "Email:FromAddress is not configured; set it in user secrets.")
+            .Validate(o => string.IsNullOrEmpty(o.User) || !string.IsNullOrEmpty(o.Password),
+                "Email:Password is required whenever Email:User is set; set it in user secrets.")
+            .ValidateOnStart();
         services.AddScoped<IEmailSender, SmtpEmailSender>();
+
+        // Confirmation links are built from this, and a relative link is useless in an
+        // email, so refuse to start rather than send unclickable mail.
+        if (string.IsNullOrWhiteSpace(configuration["App:ClientBaseUrl"]))
+            throw new InvalidOperationException("App:ClientBaseUrl is not configured.");
 
         // rate limiting (applied per-action on AuthController)
         services.AddNutriTrackRateLimiting(configuration);
