@@ -77,6 +77,12 @@ app.UseSerilogRequestLogging(options =>
 });
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+
+// Ahead of authentication: every rate-limited endpoint is anonymous, so abusive traffic is
+// rejected without paying for JWT validation. Sits after the correlation-id and request-log
+// middleware so a 429 is logged and carries X-Correlation-ID like any other response.
+app.UseRateLimiter();
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
