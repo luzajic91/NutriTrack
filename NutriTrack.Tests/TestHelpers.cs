@@ -1,3 +1,6 @@
+using Microsoft.Extensions.Caching.Hybrid;
+using Microsoft.Extensions.DependencyInjection;
+
 namespace NutriTrack.Tests;
 
 /// <summary>
@@ -12,6 +15,17 @@ public static class TestHelpers
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         return new NutriTrackDbContext(options);
+    }
+
+    /// <summary>
+    /// A real <see cref="HybridCache"/> backed by its default in-process store. Each call
+    /// returns an independent instance so cached entries never leak between tests.
+    /// </summary>
+    public static HybridCache CreateCache()
+    {
+        var services = new ServiceCollection();
+        services.AddHybridCache();
+        return services.BuildServiceProvider().GetRequiredService<HybridCache>();
     }
 
     public static CurrentUserService CreateUser(int userId = 1, string role = "User")

@@ -17,6 +17,9 @@
       <ExcludeAssets Condition="'$(TargetPlatformIdentifier)' == 'browser'">all</ExcludeAssets>
     </PackageReference>
     <PackageReference Include="MailKit" Version="4.17.0" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Hybrid" Version="10.8.0">
+      <ExcludeAssets Condition="'$(TargetPlatformIdentifier)' == 'browser'">all</ExcludeAssets>
+    </PackageReference>
     <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.16.0">
       <ExcludeAssets Condition="'$(TargetPlatformIdentifier)' == 'browser'">all</ExcludeAssets>
     </PackageReference>

@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using NutriTrack.Api.RateLimiting;
 using NutriTrack.Shared.Auth;
+using NutriTrack.Shared.Caching;
 using NutriTrack.Shared.Email;
 using NutriTrack.Shared.Persistence;
 
@@ -84,6 +85,12 @@ public static class DependencyInjection
 
         // rate limiting (applied per-action on AuthController)
         services.AddNutriTrackRateLimiting(configuration);
+
+        // caching. Only seed data that every user shares is cached: the lookup tables and the
+        // food catalog. Per-user reads (meal history, summaries) are left uncached so there is
+        // no way for one user's data to be served to another, and nothing to invalidate on write.
+        services.AddHybridCache();
+        services.AddScoped<ReferenceDataCache>();
 
         // validators
         services.AddScoped<RegisterValidator>();
