@@ -1,4 +1,5 @@
 using NutriTrack.Api;
+using NutriTrack.Api.Cors;
 using Microsoft.AspNetCore.OpenApi;
 using Serilog;
 
@@ -30,15 +31,7 @@ builder.Services.AddOpenApi(options =>
     });
 });
 
-builder.Services.AddCors(options =>
-{
-    options.AddDefaultPolicy(policy =>
-    {
-        policy.AllowAnyOrigin()      // Allow requests from any origin
-              .AllowAnyMethod()       // Allow GET, POST, PUT, DELETE, etc.
-              .AllowAnyHeader();      // Allow any headers
-    });
-});
+builder.Services.AddNutriTrackCors(builder.Configuration);
 
 builder.Services.AddCore(builder.Configuration);
 
