@@ -21,6 +21,15 @@ public class AuthService : IAuthService
     private const string AccessTokenKey = "accessToken";
     private const string RefreshTokenKey = "refreshToken";
 
+    /// <summary>
+    /// Serialises token refresh. Calls that fire together — the dashboard requests meal summary
+    /// and history at once — used to each see the expired token and refresh independently,
+    /// leaving two live rotation chains where only the last one written to localStorage was
+    /// usable. The server now treats replaying a rotated token as theft, so overlapping
+    /// refreshes would look like an attack and sign the user out.
+    /// </summary>
+    private readonly SemaphoreSlim _refreshLock = new(1, 1);
+
     public AuthService(
         HttpClient http,
         ILocalStorageService localStorage,
@@ -125,60 +134,86 @@ public class AuthService : IAuthService
 
         if (JwtParser.IsExpired(accessToken, TimeSpan.FromMinutes(1)))
         {
-            var refreshToken = await _localStorage.GetItemAsync<string>(RefreshTokenKey);
-
-            if (string.IsNullOrEmpty(refreshToken))
-            {
-                await LogoutAsync();
-                return null;
-            }
-
+            await _refreshLock.WaitAsync();
             try
             {
-                var response = await _http.PostAsJsonAsync("/api/auth/refresh-token",
-                    new { refreshToken });
+                // Re-read after acquiring: whoever held the lock may have already refreshed, in
+                // which case the stored token is fresh and rotating again would strand a chain.
+                accessToken = await _localStorage.GetItemAsync<string>(AccessTokenKey);
 
-                if (!response.IsSuccessStatusCode)
-                {
-                    // Only a 401 means the refresh token itself is dead. A 5xx or a gateway
-                    // hiccup is transient — tearing down the session over one would sign the
-                    // user out for no reason. The access token is still valid for up to a
-                    // minute, so hand it back and let the next call retry the refresh.
-                    if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-                    {
-                        _logger.LogInformation("Refresh token rejected; logging out");
-                        await LogoutAsync();
-                        return null;
-                    }
+                if (string.IsNullOrEmpty(accessToken))
+                    return null;
 
-                    _logger.LogWarning(
-                        "Token refresh failed with {StatusCode}; keeping the session",
-                        (int)response.StatusCode);
+                if (!JwtParser.IsExpired(accessToken, TimeSpan.FromMinutes(1)))
                     return accessToken;
-                }
 
-                var result = await response.Content.ReadFromJsonAsync<AuthTokensDto>();
-                if (result == null)
-                {
-                    _logger.LogWarning("Token refresh returned an empty body; keeping the session");
-                    return accessToken;
-                }
-
-                await _localStorage.SetItemAsync(AccessTokenKey, result.AccessToken);
-                await _localStorage.SetItemAsync(RefreshTokenKey, result.RefreshToken);
-
-                ((AuthStateProvider)_authStateProvider).NotifyUserAuthentication(result.AccessToken);
-
-                return result.AccessToken;
+                return await RefreshAccessTokenAsync(accessToken);
             }
-            catch (Exception ex)
+            finally
             {
-                // Transport failure (offline, DNS, CORS). Same reasoning as a 5xx above.
-                _logger.LogWarning(ex, "Token refresh could not reach the server; keeping the session");
-                return accessToken;
+                _refreshLock.Release();
             }
         }
 
         return accessToken;
+    }
+
+    /// <summary>
+    /// Exchanges the stored refresh token. Callers must hold <see cref="_refreshLock"/>.
+    /// </summary>
+    private async Task<string?> RefreshAccessTokenAsync(string accessToken)
+    {
+        var refreshToken = await _localStorage.GetItemAsync<string>(RefreshTokenKey);
+
+        if (string.IsNullOrEmpty(refreshToken))
+        {
+            await LogoutAsync();
+            return null;
+        }
+
+        try
+        {
+            var response = await _http.PostAsJsonAsync("/api/auth/refresh-token",
+                new { refreshToken });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                // Only a 401 means the refresh token itself is dead. A 5xx or a gateway
+                // hiccup is transient — tearing down the session over one would sign the
+                // user out for no reason. The access token is still valid for up to a
+                // minute, so hand it back and let the next call retry the refresh.
+                if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                {
+                    _logger.LogInformation("Refresh token rejected; logging out");
+                    await LogoutAsync();
+                    return null;
+                }
+
+                _logger.LogWarning(
+                    "Token refresh failed with {StatusCode}; keeping the session",
+                    (int)response.StatusCode);
+                return accessToken;
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<AuthTokensDto>();
+            if (result == null)
+            {
+                _logger.LogWarning("Token refresh returned an empty body; keeping the session");
+                return accessToken;
+            }
+
+            await _localStorage.SetItemAsync(AccessTokenKey, result.AccessToken);
+            await _localStorage.SetItemAsync(RefreshTokenKey, result.RefreshToken);
+
+            ((AuthStateProvider)_authStateProvider).NotifyUserAuthentication(result.AccessToken);
+
+            return result.AccessToken;
+        }
+        catch (Exception ex)
+        {
+            // Transport failure (offline, DNS, CORS). Same reasoning as a 5xx above.
+            _logger.LogWarning(ex, "Token refresh could not reach the server; keeping the session");
+            return accessToken;
+        }
     }
 }
