@@ -122,13 +122,17 @@ public class AuthControllerRateLimitCoverageTests
     }
 
     [Fact]
-    public void AuthenticatedRevokeIsNotLimited()
+    public void RevokeIsAnonymousButLimited()
     {
         var revoke = ActionsOf<AuthController>().Single(m => m.Name == nameof(AuthController.RevokeToken));
 
-        // Requires a valid JWT and has no abuse value; left unmetered deliberately.
-        revoke.GetCustomAttribute<AuthorizeAttribute>().Should().NotBeNull();
-        revoke.GetCustomAttribute<EnableRateLimitingAttribute>().Should().BeNull();
+        // Revoke used to require a valid JWT. It cannot any more: the access token now lives
+        // only in the client's memory, so after a reload there may be none to authorise with
+        // while the refresh cookie is still live, and demanding one would leave logout unable
+        // to clear it. The cookie is the credential, and being anonymous it needs a limit.
+        revoke.GetCustomAttribute<AuthorizeAttribute>().Should().BeNull();
+        revoke.GetCustomAttribute<EnableRateLimitingAttribute>()!.PolicyName
+            .Should().Be(RateLimitPolicies.Tokens);
     }
 
     private static string? PolicyFor(string actionName) =>

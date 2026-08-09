@@ -19,6 +19,17 @@ public static class ResultExtensions
             ? controller.NoContent()
             : controller.ToErrorResult(result.Error!);
 
+    /// <summary>
+    /// For actions whose success path does more than return the value — writing a cookie, or
+    /// responding with a different shape than the service produced. Error mapping stays here so
+    /// there is still one place that turns an <see cref="ErrorType"/> into a status code.
+    /// </summary>
+    public static IActionResult ToActionResult<T>(
+        this Result<T> result, ControllerBase controller, Func<T, IActionResult> onSuccess) =>
+        result.IsSuccess
+            ? onSuccess(result.Value)
+            : controller.ToErrorResult(result.Error!);
+
     private static IActionResult ToErrorResult(this ControllerBase controller, Error error) =>
         controller.StatusCode(
             error.Type.ToStatusCode(),

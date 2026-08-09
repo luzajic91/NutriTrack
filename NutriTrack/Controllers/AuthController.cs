@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.RateLimiting;
+using NutriTrack.Api.Auth;
 using NutriTrack.Api.RateLimiting;
 
 namespace NutriTrack.Api.Controllers;
@@ -13,8 +14,18 @@ namespace NutriTrack.Api.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly AuthService _auth;
+    private readonly IWebHostEnvironment _environment;
 
-    public AuthController(AuthService auth) => _auth = auth;
+    public AuthController(AuthService auth, IWebHostEnvironment environment)
+    {
+        _auth = auth;
+        _environment = environment;
+    }
+
+    // Secure cookies require HTTPS, which the http launch profile does not use. Production is
+    // secure by default. Behind a TLS-terminating proxy this needs forwarded headers, or the
+    // flag should come from configuration instead.
+    private bool CookiesAreSecure => !_environment.IsDevelopment();
 
     [HttpPost("register")]
     [EnableRateLimiting(RateLimitPolicies.Mail)]
@@ -47,22 +58,69 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Login(LoginRequest cmd, CancellationToken ct)
     {
         var result = await _auth.Login(cmd, ct);
-        return result.ToActionResult(this);
+        return result.ToActionResult(this, IssueTokens);
     }
 
+    /// <summary>
+    /// The refresh token arrives in the cookie, never in the body, so no script has to hold it
+    /// in order to refresh.
+    /// </summary>
     [HttpPost("refresh-token")]
     [EnableRateLimiting(RateLimitPolicies.Tokens)]
-    public async Task<IActionResult> RefreshToken(RefreshTokenRequest cmd, CancellationToken ct)
+    public async Task<IActionResult> RefreshToken(CancellationToken ct)
     {
-        var result = await _auth.RefreshToken(cmd, ct);
-        return result.ToActionResult(this);
+        var cookieToken = RefreshTokenCookie.Read(Request);
+
+        if (cookieToken is null)
+        {
+            // No cookie means no session to refresh. Reuses the same error the service returns
+            // for a rejected token, so a missing cookie is indistinguishable from an expired
+            // one — both to the client, which already handles 401 by logging out, and to anyone
+            // probing which sessions exist.
+            RefreshTokenCookie.Clear(Response, CookiesAreSecure);
+            Result<AuthTokensDto> noSession = AuthErrors.RefreshTokenInvalid;
+            return noSession.ToActionResult(this, IssueTokens);
+        }
+
+        var result = await _auth.RefreshToken(
+            new RefreshTokenRequest { RefreshToken = cookieToken }, ct);
+
+        // A rejected token is dead, and rotation means it will never be valid again, so clear
+        // the cookie rather than leaving the browser to keep presenting it.
+        if (!result.IsSuccess)
+            RefreshTokenCookie.Clear(Response, CookiesAreSecure);
+
+        return result.ToActionResult(this, IssueTokens);
     }
 
+    /// <summary>
+    /// Ends the session. Anonymous and cookie-driven on purpose: the access token lives only in
+    /// the client's memory, so after a page reload there may be no bearer token to authorise
+    /// with while the cookie is still valid. Requiring one would leave the cookie — and the
+    /// session behind it — alive. Holding the cookie is itself proof of ownership, and SameSite
+    /// stops another site sending it.
+    /// </summary>
     [HttpPost("revoke-token")]
-    [Authorize]
-    public async Task<IActionResult> RevokeToken(RevokeTokenRequest cmd, CancellationToken ct)
+    [EnableRateLimiting(RateLimitPolicies.Tokens)]
+    public async Task<IActionResult> RevokeToken(CancellationToken ct)
     {
-        var result = await _auth.RevokeToken(cmd, ct);
-        return result.ToActionResult(this);
+        var cookieToken = RefreshTokenCookie.Read(Request);
+
+        if (cookieToken is not null)
+            await _auth.RevokeToken(new RevokeTokenRequest { RefreshToken = cookieToken }, ct);
+
+        // Cleared unconditionally, and the result of the revoke is ignored: logging out must
+        // succeed even when the token was already revoked, expired or never existed. Reporting
+        // failure here would only tell a caller whether someone else's cookie was still live.
+        RefreshTokenCookie.Clear(Response, CookiesAreSecure);
+        return NoContent();
+    }
+
+    private IActionResult IssueTokens(AuthTokensDto tokens)
+    {
+        RefreshTokenCookie.Write(
+            Response, tokens.RefreshToken, tokens.RefreshTokenExpiresAtUtc, CookiesAreSecure);
+
+        return Ok(new AccessTokenDto { AccessToken = tokens.AccessToken });
     }
 }

@@ -8,4 +8,10 @@ public interface IAuthService
     Task ConfirmEmailAsync(string token);
     Task LogoutAsync();
     Task<string?> GetAccessTokenAsync();
+
+    /// <summary>
+    /// Rebuilds the session from the refresh cookie after a page load, when the in-memory access
+    /// token is gone but the cookie may still be valid. Returns whether a session was recovered.
+    /// </summary>
+    Task<bool> TryRestoreSessionAsync();
 }

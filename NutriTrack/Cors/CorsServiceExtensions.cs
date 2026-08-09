@@ -19,8 +19,12 @@ public static class CorsServiceExtensions
 
         // WithOrigins matches scheme, host and port exactly, so switching launch profile means
         // updating this setting — the same trade-off confirmation links already make.
+        // AllowCredentials is what lets the browser send the refresh token cookie to the API.
+        // It is only legal alongside a named origin — the framework rejects it combined with
+        // AllowAnyOrigin, which is one more reason the policy above is pinned.
         services.AddCors(options => options.AddDefaultPolicy(policy => policy
             .WithOrigins(clientBaseUrl)
+            .AllowCredentials()
             .AllowAnyMethod()
             .AllowAnyHeader()));
 
