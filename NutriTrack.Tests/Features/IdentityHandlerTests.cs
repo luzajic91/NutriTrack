@@ -1,4 +1,5 @@
 using System.Net.Sockets;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using NutriTrack.Shared.Email;
@@ -66,7 +67,7 @@ public class RegisterHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ValidCommand_EmailsALinkCarryingThePersistedToken()
+    public async Task Handle_ValidCommand_EmailsTheRawTokenButStoresOnlyItsHash()
     {
         await using var db = TestHelpers.CreateDb();
         db.Roles.Add(new Role { RoleId = 1, Name = "User" });
@@ -77,9 +78,16 @@ public class RegisterHandlerTests
             new RegisterRequest { Email = "test@test.com", Password = ValidPassword },
             CancellationToken.None);
 
-        var stored = db.EmailConfirmationTokens.Single();
+        var raw = AuthTestContext.TokenFromLink(sentBodies.Single());
+        raw.Should().NotBeNullOrEmpty();
         sentBodies.Single().Should()
-            .Contain($"https://localhost/confirm-email?token={stored.Token}");
+            .Contain($"https://localhost/confirm-email?token={raw}");
+
+        // The link carries the usable token; the row carries only a hash of it, so reading
+        // this table gives no way to confirm somebody else's address.
+        var stored = db.EmailConfirmationTokens.Single();
+        stored.Token.Should().NotBe(raw);
+        stored.Token.Should().Be(TokenHasher.Hash(raw));
     }
 
     [Fact]
@@ -117,13 +125,15 @@ public class RegisterHandlerTests
 
         // SMTP comes back, the user asks for a new mail, and confirmation now works.
         var service = AuthTestContext.CreateService(
-            db, AuthTestContext.WorkingSender(out _).Object);
+            db, AuthTestContext.WorkingSender(out var sentBodies).Object);
         await service.ResendConfirmationEmail(
             new ResendConfirmationRequest { Email = "test@test.com" }, CancellationToken.None);
 
-        var token = db.EmailConfirmationTokens.Single(t => t.ConsumedAt == null).Token;
+        // Taken from the mail, not the database: the stored value is a hash and would be
+        // rejected if presented as the token.
+        var raw = AuthTestContext.TokenFromLink(sentBodies.Single());
         await service.ConfirmEmail(
-            new ConfirmEmailRequest { Token = token }, CancellationToken.None);
+            new ConfirmEmailRequest { Token = raw }, CancellationToken.None);
 
         db.Users.Single().EmailConfirmed.Should().BeTrue();
     }
@@ -146,7 +156,9 @@ public class ResendConfirmationTests
 
         var token = db.EmailConfirmationTokens.Single();
         token.IsActive.Should().BeTrue();
-        sentBodies.Single().Should().Contain(token.Token);
+
+        var raw = AuthTestContext.TokenFromLink(sentBodies.Single());
+        token.Token.Should().Be(TokenHasher.Hash(raw));
     }
 
     [Fact]
@@ -378,9 +390,9 @@ public class RefreshTokenTests
 
         result.IsSuccess.Should().BeTrue();
 
-        var old = db.RefreshTokens.Single(t => t.Token == "active-token");
+        var old = db.RefreshTokens.Single(t => t.Token == TokenHasher.Hash("active-token"));
         old.IsRevoked.Should().BeTrue();
-        old.ReplacedByToken.Should().Be(result.Value.RefreshToken);
+        old.ReplacedByToken.Should().Be(TokenHasher.Hash(result.Value.RefreshToken));
     }
 
     [Fact]
@@ -428,6 +440,13 @@ internal static class AuthTestContext
                 ["App:ClientBaseUrl"] = "https://localhost"
             })
             .Build();
+
+    /// <summary>
+    /// Extracts the raw token from a confirmation link. Since only the hash is stored, the
+    /// emailed link is now the one place the usable token appears.
+    /// </summary>
+    public static string TokenFromLink(string emailBody) =>
+        Regex.Match(emailBody, @"token=([A-Fa-f0-9]+)").Groups[1].Value;
 
     /// <summary>Matches any send, for Moq setups and verifications alike.</summary>
     public static Expression<Func<IEmailSender, Task>> AnySend =>
@@ -492,6 +511,12 @@ internal static class AuthTestContext
         return user;
     }
 
+    /// <summary>
+    /// Seeds a refresh token the way the application stores one: callers pass the raw value
+    /// they will later present, and only its hash is persisted. Storing the raw value here
+    /// would make every lookup miss — and the expired/revoked tests would still pass, but
+    /// only because the token was never found, which proves nothing.
+    /// </summary>
     public static async Task SeedRefreshTokenAsync(
         NutriTrackDbContext db,
         string token,
@@ -501,7 +526,7 @@ internal static class AuthTestContext
         db.RefreshTokens.Add(new RefreshToken
         {
             UserId = 1,
-            Token = token,
+            Token = TokenHasher.Hash(token),
             CreatedAt = DateTime.UtcNow.AddMinutes(-1),
             ExpiresAt = expiresAt ?? DateTime.UtcNow.AddDays(7),
             RevokedAt = revokedAt

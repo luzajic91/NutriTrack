@@ -127,9 +127,11 @@ public class AuthService
     {
         _confirmEmailValidator.ValidateAndThrow(cmd);
 
+        var suppliedHash = TokenHasher.Hash(cmd.Token);
+
         var token = await _db.EmailConfirmationTokens
             .Include(t => t.User)
-            .FirstOrDefaultAsync(t => t.Token == cmd.Token, ct)
+            .FirstOrDefaultAsync(t => t.Token == suppliedHash, ct)
             ?? throw new NotFoundException("Invalid confirmation link.");
 
         if (!token.IsActive)
@@ -148,10 +150,12 @@ public class AuthService
         // Hex is URL-safe, so the raw token drops straight into the query string.
         var rawToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
 
+        // Only the hash is stored: the raw token exists in the emailed link and nowhere else,
+        // so reading this table gives no way to confirm somebody else's address.
         _db.Add(new EmailConfirmationToken
         {
             UserId = user.UserId,
-            Token = rawToken,
+            Token = TokenHasher.Hash(rawToken),
             CreatedAt = DateTime.UtcNow,
             ExpiresAt = DateTime.UtcNow.AddHours(EmailConfirmationLifetimeHours)
         });
@@ -224,10 +228,12 @@ public class AuthService
         var accessToken = _jwt.GenerateAccessToken(user.UserId, user.Role.Name);
         var refreshToken = _jwt.GenerateRefreshToken();
 
+        // The raw token goes to the caller; only its hash is persisted, so a reader of this
+        // table cannot use what they find to refresh anybody's session.
         _db.Add(new RefreshToken
         {
             UserId = user.UserId,
-            Token = refreshToken,
+            Token = TokenHasher.Hash(refreshToken),
             CreatedAt = DateTime.UtcNow,
             ExpiresAt = DateTime.UtcNow.AddDays(RefreshTokenLifetimeDays)
         });
@@ -242,10 +248,12 @@ public class AuthService
     {
         _refreshTokenValidator.ValidateAndThrow(cmd);
 
+        var suppliedHash = TokenHasher.Hash(cmd.RefreshToken);
+
         var existing = await _db.RefreshTokens
             .Include(r => r.User)
             .ThenInclude(u => u.Role)
-            .FirstOrDefaultAsync(r => r.Token == cmd.RefreshToken, ct);
+            .FirstOrDefaultAsync(r => r.Token == suppliedHash, ct);
 
         if (existing is null)
         {
@@ -257,9 +265,11 @@ public class AuthService
 
         if (!existing.IsActive)
         {
+            // Masks the supplied token rather than the stored hash: both branches then log a
+            // fragment of the same string, so the two lines still correlate to one token.
             _logger.LogWarning(
                 "Refresh attempted with inactive token {Token} for user {UserId}",
-                LogMasking.Mask(existing.Token), existing.UserId);
+                LogMasking.Mask(cmd.RefreshToken), existing.UserId);
             return AuthErrors.RefreshTokenInvalid;
         }
 
@@ -268,12 +278,15 @@ public class AuthService
         var newRefreshToken = _jwt.GenerateRefreshToken();
 
         existing.RevokedAt = DateTime.UtcNow;
-        existing.ReplacedByToken = newRefreshToken;
+
+        // Hashed as well: this column records the rotation chain, and storing the raw
+        // replacement here would hand back exactly what hashing Token was meant to withhold.
+        existing.ReplacedByToken = TokenHasher.Hash(newRefreshToken);
 
         _db.Add(new RefreshToken
         {
             UserId = existing.UserId,
-            Token = newRefreshToken,
+            Token = TokenHasher.Hash(newRefreshToken),
             CreatedAt = DateTime.UtcNow,
             ExpiresAt = DateTime.UtcNow.AddDays(RefreshTokenLifetimeDays)
         });
@@ -288,8 +301,10 @@ public class AuthService
     {
         _revokeTokenValidator.ValidateAndThrow(cmd);
 
+        var suppliedHash = TokenHasher.Hash(cmd.RefreshToken);
+
         var token = await _db.RefreshTokens
-            .FirstOrDefaultAsync(r => r.Token == cmd.RefreshToken, ct);
+            .FirstOrDefaultAsync(r => r.Token == suppliedHash, ct);
 
         if (token is null || !token.IsActive)
         {
