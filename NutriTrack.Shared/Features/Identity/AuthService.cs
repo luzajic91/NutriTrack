@@ -5,7 +5,10 @@ namespace NutriTrack.Shared.Features.Identity;
 
 public class AuthService
 {
-    private const int RefreshTokenLifetimeDays = 7;
+    // One day, not a week. The client stores this in localStorage, so any XSS can read it;
+    // a shorter window is the cheapest way to limit what a stolen one is worth. An active
+    // session rotates well inside a day, so this is invisible to daily users.
+    private const int RefreshTokenLifetimeDays = 1;
     private const int EmailConfirmationLifetimeHours = 24;
 
     /// <summary>
@@ -263,12 +266,29 @@ public class AuthService
             return AuthErrors.RefreshTokenInvalid;
         }
 
-        if (!existing.IsActive)
+        // A revoked token has already been exchanged, so presenting it again means two parties
+        // hold it — the legitimate client and whoever copied it out of localStorage. Rotation
+        // guarantees only one of them can keep the chain alive, so this replay is the moment the
+        // theft becomes visible: retire the lineage descended from it and make both sides
+        // re-authenticate. Expiry is not suspicious and is handled below.
+        if (existing.IsRevoked)
+        {
+            var revokedCount = await RevokeDescendantsAsync(existing, ct);
+
+            _logger.LogWarning(
+                "Refresh token replay detected for user {UserId} with token {Token}; " +
+                "revoked {RevokedCount} descendant token(s)",
+                existing.UserId, LogMasking.Mask(cmd.RefreshToken), revokedCount);
+
+            return AuthErrors.RefreshTokenInvalid;
+        }
+
+        if (existing.IsExpired)
         {
             // Masks the supplied token rather than the stored hash: both branches then log a
             // fragment of the same string, so the two lines still correlate to one token.
             _logger.LogWarning(
-                "Refresh attempted with inactive token {Token} for user {UserId}",
+                "Refresh attempted with expired token {Token} for user {UserId}",
                 LogMasking.Mask(cmd.RefreshToken), existing.UserId);
             return AuthErrors.RefreshTokenInvalid;
         }
@@ -295,6 +315,45 @@ public class AuthService
 
         _logger.LogInformation("Access token refreshed for user {UserId}", existing.UserId);
         return new AuthTokensDto { AccessToken = newAccessToken, RefreshToken = newRefreshToken };
+    }
+
+    /// <summary>
+    /// Revokes every token descended from <paramref name="replayed"/> by following the rotation
+    /// chain recorded in <see cref="RefreshToken.ReplacedByToken"/>, and returns how many were
+    /// still active. Only the compromised lineage is retired, so the user's other devices keep
+    /// their sessions.
+    /// </summary>
+    private async Task<int> RevokeDescendantsAsync(RefreshToken replayed, CancellationToken ct)
+    {
+        // The chain is data, and data can be wrong: a corrupted or looping ReplacedByToken must
+        // not spin here, so every hash is visited at most once.
+        var visited = new HashSet<string> { replayed.Token };
+        var now = DateTime.UtcNow;
+        var revoked = 0;
+
+        var nextHash = replayed.ReplacedByToken;
+
+        while (!string.IsNullOrEmpty(nextHash) && visited.Add(nextHash))
+        {
+            var descendant = await _db.RefreshTokens
+                .FirstOrDefaultAsync(r => r.Token == nextHash, ct);
+
+            if (descendant is null)
+                break;
+
+            if (descendant.RevokedAt is null)
+            {
+                descendant.RevokedAt = now;
+                revoked++;
+            }
+
+            nextHash = descendant.ReplacedByToken;
+        }
+
+        if (revoked > 0)
+            await _db.SaveChangesAsync(ct);
+
+        return revoked;
     }
 
     public async Task<Result> RevokeToken(RevokeTokenRequest cmd, CancellationToken ct)
