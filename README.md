@@ -44,6 +44,37 @@ performs the work via EF Core. Domain exceptions (`NotFoundException`,
 The same DTO types travel from the Blazor client through the API to the service,
 because both ends reference the Shared project.
 
+## Local setup
+
+Registration sends a confirmation email, and the API refuses to start until the
+sender is configured. `appsettings.json` carries the non-secret half (SMTP host,
+port, STARTTLS); the credentials are per-machine and must come from user secrets,
+never from a tracked file — this repo is public.
+
+For Gmail, create an [app password](https://myaccount.google.com/apppasswords)
+(requires 2-Step Verification on the account), then:
+
+```bash
+dotnet user-secrets set "Email:User" "you@gmail.com" --project NutriTrack/NutriTrack.Api.csproj
+dotnet user-secrets set "Email:FromAddress" "you@gmail.com" --project NutriTrack/NutriTrack.Api.csproj
+dotnet user-secrets set "Email:Password" "your-16-char-app-password" --project NutriTrack/NutriTrack.Api.csproj
+```
+
+`Email:FromAddress` must match `Email:User` — Gmail rejects a mismatched sender.
+In deployment the same keys can come from `Email__User` / `Email__Password`
+environment variables instead, since user secrets are Development-only.
+
+To develop without sending real mail, run a local catcher
+(`dotnet tool install --global rnwood.smtp4dev`, then `smtp4dev`) and point
+`Email:Host` at `localhost` with `Port` 25 and `UseStartTls` false; it accepts
+anything unauthenticated, so leave `Email:User` and `Email:Password` unset.
+`Email:FromAddress` is still required — any address will do, since nothing is
+relayed.
+
+`App:ClientBaseUrl` must match the URL you browse the Blazor client on, since
+confirmation links are built from it (`http://localhost:5107` for the `http`
+launch profile, `https://localhost:7115` for `https`).
+
 ## Tech stack
 
 - ASP.NET Core Web API with Controllers
