@@ -46,10 +46,36 @@ because both ends reference the Shared project.
 
 ## Local setup
 
+This repo is public, so no secret may live in a tracked file. `appsettings.json`
+carries only the non-secret half of each setting and leaves the credentials blank;
+the API validates them on start and refuses to boot if any are missing, so a fresh
+clone fails loudly rather than misbehaving later.
+
+### JWT signing key
+
+Required before the API will start. Any 32-byte-or-longer value works — HMAC-SHA256
+needs a 256-bit key, and startup rejects anything shorter. Generate one and store it
+without ever putting it on screen:
+
+```powershell
+$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+$bytes = New-Object byte[] 48
+$rng.GetBytes($bytes)
+dotnet user-secrets set "Jwt:Secret" ([Convert]::ToBase64String($bytes)) --project NutriTrack/NutriTrack.Api.csproj
+```
+
+```bash
+dotnet user-secrets set "Jwt:Secret" "$(openssl rand -base64 48)" --project NutriTrack/NutriTrack.Api.csproj
+```
+
+Changing this key invalidates every access token already issued, so everyone signs
+in again. In deployment supply it as the `Jwt__Secret` environment variable.
+
+### Confirmation email
+
 Registration sends a confirmation email, and the API refuses to start until the
 sender is configured. `appsettings.json` carries the non-secret half (SMTP host,
-port, STARTTLS); the credentials are per-machine and must come from user secrets,
-never from a tracked file — this repo is public.
+port, STARTTLS); the credentials are per-machine and must come from user secrets.
 
 For Gmail, create an [app password](https://myaccount.google.com/apppasswords)
 (requires 2-Step Verification on the account), then:

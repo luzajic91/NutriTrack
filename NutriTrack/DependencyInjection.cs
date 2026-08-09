@@ -19,8 +19,19 @@ public static class DependencyInjection
         services.AddDbContext<NutriTrackDbContext>(options =>
             options.UseSqlServer(configuration.GetConnectionString("Default")));
 
-        var jwtSecret = configuration["Jwt:Secret"]
-            ?? throw new InvalidOperationException("Jwt:Secret is not configured.");
+        // The signing key must never live in a tracked file: this repo is public, and anyone
+        // holding the key can mint a valid token for any user and role. It comes from user
+        // secrets in development and from the environment in deployment (see README).
+        var jwtSecret = configuration["Jwt:Secret"];
+        if (string.IsNullOrWhiteSpace(jwtSecret))
+            throw new InvalidOperationException(
+                "Jwt:Secret is not configured; set it in user secrets.");
+
+        // HMAC-SHA256 requires a 256-bit key. Checking here rather than letting
+        // JwtTokenService fail on the first signature turns a broken login into a startup error.
+        if (Encoding.UTF8.GetByteCount(jwtSecret) < 32)
+            throw new InvalidOperationException(
+                "Jwt:Secret must be at least 32 bytes long for HMAC-SHA256.");
 
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>

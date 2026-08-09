@@ -366,3 +366,10 @@ FodyWeavers.xsd
 # Serilog rolling log files
 logs/
 /.claude/settings.local.json
+
+# Secrets. Real credentials belong in user secrets or the environment, never in the
+# repo; these patterns are a backstop against committing them by accident.
+.env
+.env.*
+secrets.json
+appsettings*.Local.json
