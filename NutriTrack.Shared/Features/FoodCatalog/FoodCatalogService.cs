@@ -18,20 +18,37 @@ public class FoodCatalogService
 
     private static readonly string[] Tags = [CacheTags.Foods];
 
+    /// <summary>
+    /// Page sizes worth caching: the API default, and the 50 the food dropdowns ask for. Every
+    /// distinct size is a separate entry, and validation alone still leaves 100 of them times
+    /// every page times every brand — a lot of entries nothing reads twice once the catalog is
+    /// populated. Anything else is served uncached rather than refused.
+    /// </summary>
+    private static readonly int[] CacheablePageSizes = [20, 50];
+
+    /// <summary>
+    /// How deep into the catalog caching applies. People page through the first screens; the
+    /// tail is rare enough that caching it costs more memory than it saves.
+    /// </summary>
+    private const int MaxCacheablePage = 5;
+
     private readonly NutriTrackDbContext _db;
     private readonly HybridCache _cache;
     private readonly ReferenceDataCache _reference;
+    private readonly SearchFoodsValidator _searchValidator;
     private readonly ILogger<FoodCatalogService> _logger;
 
     public FoodCatalogService(
         NutriTrackDbContext db,
         HybridCache cache,
         ReferenceDataCache reference,
+        SearchFoodsValidator searchValidator,
         ILogger<FoodCatalogService> logger)
     {
         _db = db;
         _cache = cache;
         _reference = reference;
+        _searchValidator = searchValidator;
         _logger = logger;
     }
 
@@ -45,26 +62,39 @@ public class FoodCatalogService
             ct);
 
     public async Task<PagedResultDto<FoodSummaryDto>> SearchFoods(
-        string? search, int? brandId, int page, int pageSize, CancellationToken ct)
+        SearchFoodsRequest cmd, CancellationToken ct)
     {
+        // Bounds page and pageSize before either reaches the database or a cache key. Page 0
+        // previously reached SQL Server as OFFSET -20 and failed the whole request.
+        _searchValidator.ValidateAndThrow(cmd);
+
         _logger.LogDebug(
             "Searching foods (search={Search}, brandId={BrandId}, page={Page})",
-            search, brandId, page);
+            cmd.Search, cmd.BrandId, cmd.Page);
 
-        // Free-text queries are deliberately not cached: the key space is unbounded and
-        // caller-controlled, so anyone could fill the cache with single-use entries. Browsing,
-        // optionally filtered by brand, is the repeated shape that benefits.
-        if (!string.IsNullOrWhiteSpace(search))
-            return await LoadSearchAsync(search, brandId, page, pageSize, ct);
+        if (!IsCacheable(cmd))
+            return await LoadSearchAsync(cmd.Search, cmd.BrandId, cmd.Page, cmd.PageSize, ct);
 
         return await _cache.GetOrCreateAsync(
-            $"foods:browse:{brandId?.ToString() ?? "all"}:{page}:{pageSize}",
-            (Service: this, brandId, page, pageSize),
-            static (s, ct) => s.Service.LoadSearchAsync(null, s.brandId, s.page, s.pageSize, ct),
+            $"foods:browse:{cmd.BrandId?.ToString() ?? "all"}:{cmd.Page}:{cmd.PageSize}",
+            (Service: this, cmd),
+            static (s, ct) => s.Service.LoadSearchAsync(
+                null, s.cmd.BrandId, s.cmd.Page, s.cmd.PageSize, ct),
             CatalogOptions,
             Tags,
             ct);
     }
+
+    /// <summary>
+    /// Whether a request is one worth keeping. Everything excluded here is still served, just
+    /// read fresh: the point is that a caller cannot mint unlimited cache entries by varying
+    /// what they ask for.
+    /// </summary>
+    private static bool IsCacheable(SearchFoodsRequest cmd) =>
+        // Free text is unbounded and caller-controlled — one entry per phrase anyone types.
+        string.IsNullOrWhiteSpace(cmd.Search)
+        && Array.IndexOf(CacheablePageSizes, cmd.PageSize) >= 0
+        && cmd.Page <= MaxCacheablePage;
 
     private async ValueTask<FoodDto> LoadFoodAsync(int foodId, CancellationToken ct)
     {

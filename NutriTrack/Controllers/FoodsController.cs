@@ -18,13 +18,9 @@ public class FoodsController : ControllerBase
 
     [HttpGet]
     public async Task<IActionResult> SearchFoods(
-        [FromQuery] string? search,
-        [FromQuery] int? brandId,
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20,
-        CancellationToken ct = default)
+        [FromQuery] SearchFoodsRequest cmd, CancellationToken ct)
     {
-        var result = await _foods.SearchFoods(search, brandId, page, pageSize, ct);
+        var result = await _foods.SearchFoods(cmd, ct);
         return Ok(result);
     }
 }
