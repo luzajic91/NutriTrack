@@ -47,6 +47,15 @@ public class CorsConfigurationTests
     }
 
     [Fact]
+    public void DefaultPolicy_SupportsCredentials()
+    {
+        // Without this the browser never attaches the refresh cookie, and every refresh fails.
+        // It is legal only alongside a named origin — the framework rejects it with
+        // AllowAnyOrigin, which is a second reason the origin above stays pinned.
+        BuildDefaultPolicy().SupportsCredentials.Should().BeTrue();
+    }
+
+    [Fact]
     public void DefaultPolicy_StillAllowsAnyMethodAndHeader()
     {
         var policy = BuildDefaultPolicy();

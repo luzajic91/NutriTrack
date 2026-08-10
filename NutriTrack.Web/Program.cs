@@ -26,8 +26,10 @@ builder.Services.AddScoped(sp => new HttpClient
 // Add Blazored LocalStorage
 builder.Services.AddBlazoredLocalStorage();
 
-// Add Authentication
+// Add Authentication. TokenStore holds the access token in memory for the life of the page;
+// the refresh token is an HttpOnly cookie the client never touches.
 builder.Services.AddAuthorizationCore();
+builder.Services.AddScoped<TokenStore>();
 builder.Services.AddScoped<AuthenticationStateProvider, AuthStateProvider>();
 
 // Add Application Services
@@ -38,4 +40,13 @@ builder.Services.AddScoped<IFoodService, FoodService>();
 builder.Services.AddScoped<IMealService, MealService>();
 builder.Services.AddScoped<IUserPreferencesService, UserPreferencesService>();
 
-await builder.Build().RunAsync();
+var host = builder.Build();
+
+// Tokens from before the cookie change are still sitting in localStorage, where a script can
+// read them. Clear them once on startup. Remove this — and the Blazored.LocalStorage package,
+// which nothing else uses — once users have cycled through.
+var localStorage = host.Services.GetRequiredService<ILocalStorageService>();
+await localStorage.RemoveItemAsync("accessToken");
+await localStorage.RemoveItemAsync("refreshToken");
+
+await host.RunAsync();

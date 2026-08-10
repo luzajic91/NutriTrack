@@ -231,6 +231,8 @@ public class AuthService
         var accessToken = _jwt.GenerateAccessToken(user.UserId, user.Role.Name);
         var refreshToken = _jwt.GenerateRefreshToken();
 
+        var refreshExpiresAt = DateTime.UtcNow.AddDays(RefreshTokenLifetimeDays);
+
         // The raw token goes to the caller; only its hash is persisted, so a reader of this
         // table cannot use what they find to refresh anybody's session.
         _db.Add(new RefreshToken
@@ -238,13 +240,18 @@ public class AuthService
             UserId = user.UserId,
             Token = TokenHasher.Hash(refreshToken),
             CreatedAt = DateTime.UtcNow,
-            ExpiresAt = DateTime.UtcNow.AddDays(RefreshTokenLifetimeDays)
+            ExpiresAt = refreshExpiresAt
         });
 
         await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("User {UserId} logged in", user.UserId);
-        return new AuthTokensDto { AccessToken = accessToken, RefreshToken = refreshToken };
+        return new AuthTokensDto
+        {
+            AccessToken = accessToken,
+            RefreshToken = refreshToken,
+            RefreshTokenExpiresAtUtc = refreshExpiresAt
+        };
     }
 
     public async Task<Result<AuthTokensDto>> RefreshToken(RefreshTokenRequest cmd, CancellationToken ct)
@@ -303,18 +310,25 @@ public class AuthService
         // replacement here would hand back exactly what hashing Token was meant to withhold.
         existing.ReplacedByToken = TokenHasher.Hash(newRefreshToken);
 
+        var refreshExpiresAt = DateTime.UtcNow.AddDays(RefreshTokenLifetimeDays);
+
         _db.Add(new RefreshToken
         {
             UserId = existing.UserId,
             Token = TokenHasher.Hash(newRefreshToken),
             CreatedAt = DateTime.UtcNow,
-            ExpiresAt = DateTime.UtcNow.AddDays(RefreshTokenLifetimeDays)
+            ExpiresAt = refreshExpiresAt
         });
 
         await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("Access token refreshed for user {UserId}", existing.UserId);
-        return new AuthTokensDto { AccessToken = newAccessToken, RefreshToken = newRefreshToken };
+        return new AuthTokensDto
+        {
+            AccessToken = newAccessToken,
+            RefreshToken = newRefreshToken,
+            RefreshTokenExpiresAtUtc = refreshExpiresAt
+        };
     }
 
     /// <summary>
