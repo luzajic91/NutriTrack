@@ -1,0 +1,297 @@
+@page "/recipes/{RecipeId:int}/edit"
+@attribute [Authorize]
+@inject IRecipeService RecipeService
+@inject NavigationManager Navigation
+
+<PageTitle>@(string.IsNullOrEmpty(_name) ? "Edit Recipe" : $"Edit {_name}") - NutriTrack</PageTitle>
+
+@* A flat form rather than the three-step wizard CreateRecipe uses: that flow guides a first
+   build, but clicking through Basic Info -> Add Foods -> Review to fix one typo is friction. *@
+<div class="create-recipe-container">
+    <div class="wizard-header">
+        <button class="btn-back" @onclick="NavigateToDetails">← Cancel</button>
+        <h1>Edit Recipe</h1>
+    </div>
+
+    <LoadingOrError IsLoading="@_isLoading" ErrorMessage="@_loadError" OnRetry="LoadRecipe" LoadingText="Loading recipe...">
+        @if (!_isOwner)
+        {
+            <div class="alert alert-danger" role="alert">
+                You can view this recipe, but only its owner can edit it.
+            </div>
+            <button class="btn btn-secondary" @onclick="NavigateToDetails">Back to Recipe</button>
+        }
+        else
+        {
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <div class="alert alert-danger" role="alert">
+                    @_errorMessage
+                </div>
+            }
+
+            <div class="wizard-content">
+                <h2>Recipe Details</h2>
+
+                <div class="form-group">
+                    <label class="form-label" for="recipeName">Recipe Name *</label>
+                    <input id="recipeName"
+                           type="text"
+                           class="form-control"
+                           @bind="_name"
+                           placeholder="e.g., Chicken & Rice Bowl"
+                           maxlength="100" />
+                    @if (_showValidation && string.IsNullOrWhiteSpace(_name))
+                    {
+                        <span class="validation-message">Recipe name is required</span>
+                    }
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="description">Description (Optional)</label>
+                    <textarea id="description"
+                              class="form-control"
+                              @bind="_description"
+                              placeholder="Brief description of the recipe"
+                              rows="3"
+                              maxlength="200"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="servings">Number of Servings (Optional)</label>
+                    <input id="servings"
+                           type="number"
+                           class="form-control"
+                           @bind="_servingsCount"
+                           placeholder="e.g., 2"
+                           min="1"
+                           max="100" />
+                </div>
+
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" @bind="_isPublic" />
+                        <span>Make this recipe public</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="wizard-content">
+                <h2>Ingredients</h2>
+
+                <div class="food-search-section">
+                    <FoodSearchDropdown OnFoodsSelected="HandleMultiFoodSelected"
+                                        Placeholder="Search for foods to add" />
+                </div>
+
+                <div class="added-items-section">
+                    <h3>Recipe Items (@_items.Count)</h3>
+
+                    @if (_items.Any())
+                    {
+                        <div class="items-list">
+                            @foreach (var item in _items)
+                            {
+                                <div class="recipe-item">
+                                    <div class="item-info">
+                                        <strong>@item.FoodName</strong>
+                                    </div>
+                                    @* Editable here but not on create: adjusting an amount is
+                                       the most common reason to open this page at all. *@
+                                    <div class="item-grams-edit">
+                                        <input type="number"
+                                               class="form-control form-control-sm"
+                                               @bind="item.Grams"
+                                               min="1"
+                                               step="1"
+                                               aria-label="@($"Grams of {item.FoodName}")" />
+                                        <span>g</span>
+                                    </div>
+                                    <button class="btn-remove" @onclick="() => RemoveItem(item)">🗑️</button>
+                                </div>
+                            }
+
+                            <div class="total-weight">
+                                <strong>Total Weight:</strong>
+                                <span>@CalculateTotalWeight().ToString("F0")g</span>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted">No items left. Search and add foods above.</p>
+                    }
+                </div>
+
+                @if (_showValidation && !_items.Any())
+                {
+                    <div class="alert alert-warning">
+                        A recipe must have at least one food item.
+                    </div>
+                }
+
+                <div class="wizard-actions">
+                    <button class="btn btn-outline-secondary" @onclick="NavigateToDetails">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveRecipe" disabled="@_isSaving">
+                        @if (_isSaving)
+                        {
+                            <span class="spinner-sm"></span>
+                            <span>Saving...</span>
+                        }
+                        else
+                        {
+                            <span>✓ Save Changes</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        }
+    </LoadingOrError>
+</div>
+
+@code {
+    [Parameter]
+    public int RecipeId { get; set; }
+
+    private string _name = string.Empty;
+    private string? _description;
+    private int? _servingsCount;
+    private bool _isPublic;
+    private bool _isOwner;
+    private List<RecipeItemModel> _items = new();
+
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private bool _showValidation;
+    private string? _loadError;
+    private string? _errorMessage;
+
+    // Mutable mirror of RecipeItemDto: the grams input binds straight to it.
+    private class RecipeItemModel
+    {
+        public int FoodId { get; set; }
+        public string FoodName { get; set; } = string.Empty;
+        public decimal Grams { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRecipe();
+    }
+
+    private async Task LoadRecipe()
+    {
+        _isLoading = true;
+        _loadError = null;
+
+        try
+        {
+            var recipe = await RecipeService.GetRecipeAsync(RecipeId);
+
+            _name = recipe.Name;
+            _description = recipe.Description;
+            _servingsCount = recipe.ServingsCount;
+            _isPublic = recipe.IsPublic;
+            _isOwner = recipe.IsOwner;
+            _items = recipe.Items
+                .Select(i => new RecipeItemModel
+                {
+                    FoodId = i.FoodId,
+                    FoodName = i.FoodName,
+                    Grams = i.Grams
+                })
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            _loadError = $"Failed to load recipe: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void HandleMultiFoodSelected(List<FoodSelectionItem> selections)
+    {
+        foreach (var sel in selections)
+        {
+            if (_items.Any(i => i.FoodId == sel.Food.FoodId))
+                continue;
+
+            _items.Add(new RecipeItemModel
+            {
+                FoodId = sel.Food.FoodId,
+                FoodName = sel.Food.Name,
+                Grams = sel.Grams
+            });
+        }
+
+        _errorMessage = null;
+    }
+
+    private void RemoveItem(RecipeItemModel item)
+    {
+        _items.Remove(item);
+    }
+
+    private decimal CalculateTotalWeight()
+    {
+        return _items.Sum(i => i.Grams);
+    }
+
+    private async Task SaveRecipe()
+    {
+        _showValidation = true;
+
+        if (string.IsNullOrWhiteSpace(_name))
+        {
+            _errorMessage = "Please enter a recipe name.";
+            return;
+        }
+
+        if (!_items.Any())
+        {
+            _errorMessage = "Please keep at least one food item.";
+            return;
+        }
+
+        if (_items.Any(i => i.Grams <= 0))
+        {
+            _errorMessage = "Every ingredient needs an amount greater than 0g.";
+            return;
+        }
+
+        _isSaving = true;
+        _errorMessage = null;
+
+        try
+        {
+            var request = new UpdateRecipeRequest
+            {
+                Name = _name,
+                Description = _description,
+                ServingsCount = _servingsCount,
+                IsPublic = _isPublic,
+                Items = _items.Select(i => new RecipeItemRequest(i.FoodId, i.Grams)).ToList()
+            };
+
+            await RecipeService.UpdateRecipeAsync(RecipeId, request);
+
+            NavigateToDetails();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to save recipe: {ex.Message}";
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private void NavigateToDetails()
+    {
+        Navigation.NavigateTo($"/recipes/{RecipeId}");
+    }
+}

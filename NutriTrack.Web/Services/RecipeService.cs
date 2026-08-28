@@ -22,6 +22,9 @@ public class RecipeService : IRecipeService
     public Task<int> CreateRecipeAsync(CreateRecipeRequest request) =>
         _api.PostAsync<int>("/api/recipes", request);
 
+    public Task UpdateRecipeAsync(int id, UpdateRecipeRequest request) =>
+        _api.PutAsync($"/api/recipes/{id}", request);
+
     public Task DeleteRecipeAsync(int id) =>
         _api.DeleteAsync($"/api/recipes/{id}");
 }

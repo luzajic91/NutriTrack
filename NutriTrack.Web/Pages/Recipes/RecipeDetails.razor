@@ -38,19 +38,25 @@
                 }
             </div>
 
-            <div class="recipe-actions">
-                <button class="btn btn-danger" @onclick="HandleDelete" disabled="@_isDeleting">
-                    @if (_isDeleting)
-                    {
-                        <span class="spinner-sm"></span>
-                        <span>Deleting...</span>
-                    }
-                    else
-                    {
-                        <span>🗑️ Delete</span>
-                    }
-                </button>
-            </div>
+            @* Owner-only: a public recipe is visible to everyone, but the API refuses an edit
+               or delete from anyone else, so offering the buttons would only produce a 403. *@
+            @if (_recipe.IsOwner)
+            {
+                <div class="recipe-actions">
+                    <button class="btn btn-primary" @onclick="NavigateToEdit">✏️ Edit</button>
+                    <button class="btn btn-danger" @onclick="HandleDelete" disabled="@_isDeleting">
+                        @if (_isDeleting)
+                        {
+                            <span class="spinner-sm"></span>
+                            <span>Deleting...</span>
+                        }
+                        else
+                        {
+                            <span>🗑️ Delete</span>
+                        }
+                    </button>
+                </div>
+            }
         </div>
 
         @if (!string.IsNullOrEmpty(_recipe.Description))
@@ -148,6 +154,11 @@
         // In a real app, you'd use a modal dialog
         // For now, we'll just use browser confirm
         return await Task.FromResult(true);
+    }
+
+    private void NavigateToEdit()
+    {
+        Navigation.NavigateTo($"/recipes/{RecipeId}/edit");
     }
 
     private void NavigateBack()

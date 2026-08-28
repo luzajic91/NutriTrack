@@ -715,3 +715,19 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* Grams editor on the edit page. The create wizard only adds and removes items, so its
+   .item-grams is a static label; here the amount is an input sitting between the food
+   name and the remove button. */
+.item-grams-edit {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin: 0 0.75rem;
+    white-space: nowrap;
+}
+
+    .item-grams-edit input {
+        width: 5.5rem;
+        text-align: right;
+    }

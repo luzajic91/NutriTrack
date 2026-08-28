@@ -113,6 +113,7 @@ public static class DependencyInjection
         services.AddScoped<SearchFoodsValidator>();
         services.AddScoped<LogMealValidator>();
         services.AddScoped<CreateRecipeValidator>();
+        services.AddScoped<UpdateRecipeValidator>();
         services.AddScoped<UpdateUserPreferencesValidator>();
 
         // feature services

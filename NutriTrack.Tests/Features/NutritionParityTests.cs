@@ -50,7 +50,7 @@ public class NutritionParityTests
         await db.SaveChangesAsync();
 
         var user = CreateUser();
-        var recipes = new RecipeService(db, user, new CreateRecipeValidator(), NullLogger<RecipeService>.Instance);
+        var recipes = new RecipeService(db, user, new CreateRecipeValidator(), new UpdateRecipeValidator(), NullLogger<RecipeService>.Instance);
         var meals = new MealLoggingService(db, user, new NutritionQueryService(db), new LogMealValidator(), NullLogger<MealLoggingService>.Instance);
 
         var consumedAt = new DateTime(2026, 6, 1, 12, 0, 0, DateTimeKind.Utc);
