@@ -37,6 +37,13 @@ public class RecipesController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPut("{id:int}")]
+    public async Task<IActionResult> UpdateRecipe(int id, UpdateRecipeRequest cmd, CancellationToken ct)
+    {
+        await _recipes.UpdateRecipe(id, cmd, ct);
+        return NoContent();
+    }
+
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> DeleteRecipe(int id, CancellationToken ct)
     {

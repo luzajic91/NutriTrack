@@ -8,17 +8,20 @@ public class RecipeService
     private readonly NutriTrackDbContext _db;
     private readonly CurrentUserService _currentUser;
     private readonly CreateRecipeValidator _createRecipeValidator;
+    private readonly UpdateRecipeValidator _updateRecipeValidator;
     private readonly ILogger<RecipeService> _logger;
 
     public RecipeService(
         NutriTrackDbContext db,
         CurrentUserService currentUser,
         CreateRecipeValidator createRecipeValidator,
+        UpdateRecipeValidator updateRecipeValidator,
         ILogger<RecipeService> logger)
     {
         _db = db;
         _currentUser = currentUser;
         _createRecipeValidator = createRecipeValidator;
+        _updateRecipeValidator = updateRecipeValidator;
         _logger = logger;
     }
 
@@ -71,6 +74,7 @@ public class RecipeService
             ServingsCount = recipe.ServingsCount,
             TotalGrams = recipe.TotalGrams,
             IsPublic = recipe.IsPublic,
+            IsOwner = recipe.UserId == _currentUser.UserId,
             Items = recipe.RecipeItems.Select(i => new RecipeItemDto
             {
                 RecipeItemId = i.RecipeItemId,
@@ -115,6 +119,51 @@ public class RecipeService
                 ItemCount = r.RecipeItems.Count
             })
             .ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// Replaces the whole recipe, ingredient list included. Editing does not disturb meal
+    /// history: MealLoggingService copies a recipe's items into MealEntryItem rows at log
+    /// time, so past entries are snapshots and only future logging sees the new ingredients.
+    /// </summary>
+    public async Task UpdateRecipe(int recipeId, UpdateRecipeRequest cmd, CancellationToken ct)
+    {
+        _updateRecipeValidator.ValidateAndThrow(cmd);
+
+        var recipe = await _db.Recipes
+            .Include(r => r.RecipeItems)
+            .FirstOrDefaultAsync(r => r.RecipeId == recipeId, ct)
+            ?? throw new NotFoundException($"Recipe {recipeId} not found.");
+
+        // Ahead of the food lookup on purpose: otherwise a non-owner could read
+        // "Food N not found" off a rejected edit and probe which ids exist.
+        EnsureCanEdit(recipe);
+
+        await _db.EnsureFoodsExistAsync(cmd.Items.Select(i => i.FoodId), ct);
+
+        recipe.Name = cmd.Name;
+        recipe.Description = cmd.Description;
+        recipe.ServingsCount = cmd.ServingsCount;
+        recipe.IsPublic = cmd.IsPublic;
+
+        // Derived from the items, never taken from the caller — the same rule CreateRecipe
+        // follows. TotalGrams is the divisor for portion scaling when a meal logs this recipe.
+        recipe.TotalGrams = cmd.Items.Sum(i => i.Grams);
+
+        // Full replace. Nothing outside the recipe holds a RecipeItemId, so dropping the rows
+        // and rebuilding costs nothing and keeps this symmetric with CreateRecipe.
+        var existingItems = recipe.RecipeItems.ToList();
+        _db.RemoveRange(existingItems);
+        recipe.RecipeItems.Clear();
+
+        foreach (var item in cmd.Items)
+            recipe.RecipeItems.Add(new RecipeItem { FoodId = item.FoodId, Grams = item.Grams });
+
+        await _db.SaveChangesAsync(ct);
+
+        _logger.LogInformation(
+            "Recipe {RecipeId} updated by user {UserId} ({ItemCount} items)",
+            recipe.RecipeId, _currentUser.UserId, recipe.RecipeItems.Count);
     }
 
     public async Task DeleteRecipe(int recipeId, CancellationToken ct)
@@ -186,6 +235,12 @@ public class RecipeService
     {
         if (recipe.UserId != _currentUser.UserId && !recipe.IsPublic)
             throw new ForbiddenException("You do not have access to this recipe.");
+    }
+
+    private void EnsureCanEdit(Recipe recipe)
+    {
+        if (recipe.UserId != _currentUser.UserId)
+            throw new ForbiddenException("You do not have permission to edit this recipe.");
     }
 
     private void EnsureCanDelete(Recipe recipe)

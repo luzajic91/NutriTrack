@@ -22,6 +22,12 @@ public class RecipeDto
     [JsonPropertyName("isPublic")]
     public bool IsPublic { get; set; }
 
+    /// <summary>True when the requesting user owns this recipe. A public recipe is visible to
+    /// everyone but editable and deletable only by its owner, so the client uses this to decide
+    /// whether to offer those actions at all. Computed per request, never persisted.</summary>
+    [JsonPropertyName("isOwner")]
+    public bool IsOwner { get; set; }
+
     [JsonPropertyName("items")]
     public List<RecipeItemDto> Items { get; set; } = new();
 }
